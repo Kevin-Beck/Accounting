@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Donation Ledger</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#ffffff; --line:#e3e6ea; --line-2:#eef0f3;
+    --text:#1c2430; --muted:#6b7480; --primary:#2563eb; --primary-d:#1d4ed8;
+    --primary-soft:#eef4ff; --danger:#dc2626; --ok:#16a34a; --shadow:0 1px 3px rgba(18,28,45,.08),0 4px 16px rgba(18,28,45,.06);
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45}
+  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:9px 14px;background:var(--panel);border:1px solid var(--line);color:var(--text);transition:background .12s,border-color .12s}
+  button:hover{background:#f7f8fa}
+  button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  button.primary:hover{background:var(--primary-d)}
+  button.ghost{background:transparent;border-color:transparent}
+  button.ghost:hover{background:#eceef1}
+  button.danger{color:var(--danger);border-color:var(--line)}
+  button.danger:hover{background:#fef2f2;border-color:#f6cccc}
+  input,select,textarea{font:inherit;color:var(--text);background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 5px}
+  .hidden{display:none!important}
+
+  /* ---------- Start screen ---------- */
+  #start{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+  #start .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);max-width:520px;width:100%;padding:36px;text-align:center}
+  #start h1{margin:0 0 6px;font-size:22px}
+  #start p{color:var(--muted);margin:0 0 26px}
+  #dropzone{border:2px dashed var(--line);border-radius:12px;padding:34px 20px;margin-bottom:16px;transition:.15s;cursor:pointer}
+  #dropzone:hover{border-color:var(--primary);background:var(--primary-soft)}
+  #dropzone.drag{border-color:var(--primary);background:var(--primary-soft)}
+  #dropzone .big{font-size:15px;font-weight:600}
+  #dropzone .sub{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .start-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  #restoreRow{margin-top:18px;font-size:13px;color:var(--muted)}
+  #restoreRow a{color:var(--primary);cursor:pointer;font-weight:600}
+
+  /* ---------- App ---------- */
+  #app{max-width:1180px;margin:0 auto;padding:18px}
+  header.bar{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:16px;flex-wrap:wrap}
+  header.bar .brand{font-weight:700;font-size:16px;margin-right:2px}
+  header.bar .file{font-size:12.5px;color:var(--muted);background:#f1f3f5;border-radius:6px;padding:4px 9px}
+  header.bar .spacer{flex:1}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px}
+  .panel .phead{padding:12px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .panel .phead h2{font-size:14px;margin:0}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:16px}
+  .filters .row2{display:flex;gap:8px}
+
+  .stats{display:flex;gap:22px;padding:10px 16px;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);background:#fbfcfd;flex-wrap:wrap}
+  .stats .s{font-size:12.5px;color:var(--muted)}
+  .stats .s b{color:var(--text);font-size:14px}
+
+  .tablewrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;font-size:13px}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+  th .arw{opacity:.5;font-size:10px}
+  td.amt,th.amt{text-align:right;font-variant-numeric:tabular-nums}
+  td.notes{white-space:normal;max-width:280px;color:var(--muted)}
+  tr:hover td{background:#fafbfc}
+  .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;background:#eef0f3;color:#414b57}
+  .rowdel{color:var(--danger);cursor:pointer;opacity:0;font-size:12px}
+  tr:hover .rowdel{opacity:1}
+  .empty{padding:44px;text-align:center;color:var(--muted)}
+
+  /* ---------- Modal ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(20,28,40,.42);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(10,20,40,.28);width:100%;max-width:460px;overflow:visible}
+  .modal .mhead{padding:16px 20px;border-bottom:1px solid var(--line-2);font-weight:700;font-size:15px}
+  .modal .mbody{padding:20px;display:grid;gap:14px}
+  .modal .mfoot{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;gap:10px;justify-content:flex-end}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .confirm{max-width:400px;text-align:center}
+  .confirm .mbody{text-align:center}
+
+  /* autocomplete */
+  .ac{position:relative}
+  .ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);max-height:210px;overflow-y:auto;z-index:60}
+  .ac-item{padding:9px 12px;cursor:pointer;font-size:13px}
+  .ac-item:hover,.ac-item.active{background:var(--primary-soft)}
+  .ac-item small{color:var(--muted)}
+  .ac-new{color:var(--primary);font-weight:600}
+  .err{color:var(--danger);font-size:12px;min-height:1px}
+
+  /* drag overlay while in app */
+  #appDrop{position:fixed;inset:0;background:rgba(37,99,235,.10);border:3px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--primary-d);z-index:80}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s,transform .2s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ============ START SCREEN ============ -->
+<div id="start">
+  <div class="card">
+    <h1>Donation Ledger</h1>
+    <p>Track donors, amounts and donation types — all in your browser.</p>
+    <div id="dropzone">
+      <div class="big">Drag &amp; drop a CSV here</div>
+      <div class="sub">or click to browse</div>
+    </div>
+    <div class="start-actions">
+      <button class="primary" id="btnNewFile">Start new file</button>
+      <button id="btnBrowse">Open CSV file</button>
+    </div>
+    <div id="restoreRow" class="hidden">Unsaved work found — <a id="btnRestore">Restore last session</a></div>
+    <input type="file" id="fileInput" accept=".csv,text/csv" class="hidden">
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header class="bar">
+    <span class="brand">Donation Ledger</span>
+    <span class="file" id="fileLabel">new file</span>
+    <div class="spacer"></div>
+    <button class="primary" id="btnNewDonation">+ New donation</button>
+    <button id="btnSave">Save CSV</button>
+    <button class="ghost" id="btnClose">Close</button>
+  </header>
+
+  <div class="panel">
+    <div class="phead"><h2>Filter &amp; search</h2>
+      <div class="spacer" style="flex:1"></div>
+      <button class="ghost" id="btnClearFilters">Clear</button>
+      <button id="btnExport">Export results as CSV</button>
+    </div>
+    <div class="filters">
+      <div>
+        <label>Date range</label>
+        <select id="fRange">
+          <option value="all">All time</option>
+          <option value="1">Last 1 month</option>
+          <option value="2">Last 2 months</option>
+          <option value="3">Last 3 months</option>
+          <option value="6">Last 6 months</option>
+          <option value="12">Last 12 months</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </div>
+      <div id="customFrom" class="hidden"><label>From</label><input type="date" id="fFrom"></div>
+      <div id="customTo" class="hidden"><label>To</label><input type="date" id="fTo"></div>
+      <div>
+        <label>Type</label>
+        <select id="fType"><option value="">All types</option></select>
+      </div>
+      <div><label>Donor name contains</label><input type="text" id="fName" placeholder="e.g. smith"></div>
+      <div>
+        <label>Amount ($)</label>
+        <div class="row2"><input type="number" id="fMin" placeholder="min" step="0.01"><input type="number" id="fMax" placeholder="max" step="0.01"></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="s">Records: <b id="stCount">0</b></div>
+      <div class="s">Total: <b id="stTotal">$0.00</b></div>
+      <div class="s">Unique donors: <b id="stDonors">0</b></div>
+    </div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th data-sort="date">Date <span class="arw"></span></th>
+          <th data-sort="name">Donor (Last, First) <span class="arw"></span></th>
+          <th data-sort="amount" class="amt">Amount <span class="arw"></span></th>
+          <th data-sort="type">Type <span class="arw"></span></th>
+          <th>Notes</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty hidden" id="emptyMsg">No matching donations.</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput2" accept=".csv,text/csv" class="hidden">
+
+<script>
+/* ================= CONFIG ================= */
+const DONATION_TYPES = ["Card","PayPal","Cash","Check","Other"];
+const STORAGE_KEY = "donation_ledger_autosave_v1";
+
+/* ================= STATE ================= */
+let state = { rows: [], fileName: "" };
+let sortKey = "date", sortDir = -1; // -1 newest first
+
+/* ================= CSV UTILITIES ================= */
+function parseCSV(text){
+  const rows=[]; let cur=[]; let f=""; let q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; }
+      else f+=c;
+    } else {
+      if(c==='"') q=true;
+      else if(c===','){cur.push(f);f="";}
+      else if(c==='\n'){cur.push(f);rows.push(cur);cur=[];f="";}
+      else if(c==='\r'){/*skip*/}
+      else f+=c;
+    }
+  }
+  if(f.length||cur.length){cur.push(f);rows.push(cur);}
+  return rows.filter(r=>r.some(c=>c.trim()!==""));
+}
+function toCSV(arr){
+  return arr.map(r=>r.map(c=>{
+    const s=(c==null?"":String(c));
+    return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(",")).join("\r\n");
+}
+function normalizeDate(s){
+  s=(s||"").trim();
+  if(!s) return "";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/); // MM/DD/YYYY
+  if(m){let[,mo,d,y]=m; if(y.length===2)y="20"+y; return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;}
+  const t=new Date(s); if(!isNaN(t)) return t.toISOString().slice(0,10);
+  return s;
+}
+function parseAmount(s){
+  const n=parseFloat(String(s).replace(/[^0-9.\-]/g,""));
+  return isNaN(n)?0:n;
+}
+
+/* ================= IMPORT ================= */
+function importCSV(text, name){
+  const grid = parseCSV(text);
+  if(!grid.length){ toast("File looks empty."); return; }
+  const head = grid[0].map(h=>h.trim().toLowerCase());
+  const idx = k=>head.findIndex(h=>k.includes(h));
+  const iLast = head.findIndex(h=>/^(last|lastname|last name)$/.test(h));
+  const iFirst= head.findIndex(h=>/^(first|firstname|first name)$/.test(h));
+  const iName = head.findIndex(h=>/^name$/.test(h));
+  const iDate = head.findIndex(h=>/date/.test(h));
+  const iAmt  = head.findIndex(h=>/amount|amt|value/.test(h));
+  const iType = head.findIndex(h=>/type|method/.test(h));
+  const iNote = head.findIndex(h=>/note/.test(h));
+  const hasHeader = [iLast,iFirst,iName,iDate,iAmt,iType].some(x=>x>-1);
+  const dataRows = hasHeader ? grid.slice(1) : grid;
+
+  const rows=[];
+  for(const r of dataRows){
+    let last="",first="";
+    if(iLast>-1){ last=(r[iLast]||"").trim(); first=(iFirst>-1?(r[iFirst]||"").trim():""); }
+    else if(iName>-1){ [last,first]=splitName(r[iName]); }
+    else { // no header — assume Last,First,Date,Amount,Type,Notes OR "Last, First",...
+      if((r[0]||"").includes(",") && r.length<=5){ [last,first]=splitName(r[0]); r.splice(1,0,first);} 
+      last=(r[0]||"").trim(); first=(r[1]||"").trim();
+    }
+    const date = normalizeDate(iDate>-1?r[iDate]:r[hasHeader?iDate:2]);
+    const amount = parseAmount(iAmt>-1?r[iAmt]:r[hasHeader?iAmt:3]);
+    let type=(iType>-1?r[iType]:r[hasHeader?iType:4]||"").trim();
+    type = DONATION_TYPES.find(t=>t.toLowerCase()===type.toLowerCase()) || (type||"Other");
+    const notes=(iNote>-1?r[iNote]:(hasHeader?"":r[5])||"").trim();
+    if(!last && !first) continue;
+    rows.push({last,first,date,amount,type,notes});
+  }
+  state.rows = rows;
+  state.fileName = name || "imported.csv";
+  openApp();
+  toast(`Loaded ${rows.length} donations.`);
+}
+function splitName(s){
+  s=(s||"").trim();
+  const i=s.indexOf(",");
+  if(i>-1) return [s.slice(0,i).trim(), s.slice(i+1).trim()];
+  const p=s.split(/\s+/); // "First Last" fallback -> last word is surname
+  if(p.length>1) return [p[p.length-1], p.slice(0,-1).join(" ")];
+  return [s,""];
+}
+
+/* ================= DERIVED ================= */
+function donorKey(l,f){return (l||"").toLowerCase()+"|"+(f||"").toLowerCase();}
+function donorList(){
+  const map=new Map();
+  for(const r of state.rows){ const k=donorKey(r.last,r.first); if(!map.has(k)) map.set(k,{last:r.last,first:r.first}); }
+  return [...map.values()].sort((a,b)=> (a.last+a.first).localeCompare(b.last+b.first));
+}
+function displayName(r){return r.last + (r.first?", "+r.first:"");}
+
+/* ================= FILTERING ================= */
+function monthsAgo(n){ const d=new Date(); d.setMonth(d.getMonth()-n); return d.toISOString().slice(0,10); }
+function currentFilter(){
+  const range=el("fRange").value;
+  let from="",to="";
+  if(range==="custom"){ from=el("fFrom").value; to=el("fTo").value; }
+  else if(range!=="all"){ from=monthsAgo(parseInt(range)); }
+  return {
+    from, to,
+    type: el("fType").value,
+    name: el("fName").value.trim().toLowerCase(),
+    min: el("fMin").value!==""?parseFloat(el("fMin").value):null,
+    max: el("fMax").value!==""?parseFloat(el("fMax").value):null
+  };
+}
+function applyFilter(){
+  const f=currentFilter();
+  let rows=state.rows.filter(r=>{
+    if(f.from && r.date && r.date < f.from) return false;
+    if(f.to   && r.date && r.date > f.to)   return false;
+    if(f.type && r.type!==f.type) return false;
+    if(f.name && !displayName(r).toLowerCase().includes(f.name)) return false;
+    if(f.min!=null && r.amount < f.min) return false;
+    if(f.max!=null && r.amount > f.max) return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let A,B;
+    if(sortKey==="name"){A=displayName(a).toLowerCase();B=displayName(b).toLowerCase();}
+    else if(sortKey==="amount"){A=a.amount;B=b.amount;}
+    else {A=a[sortKey]||"";B=b[sortKey]||"";}
+    return (A<B?-1:A>B?1:0)*sortDir;
+  });
+  return rows;
+}
+
+/* ================= RENDER ================= */
+const fmt=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"});
+function render(){
+  const rows=applyFilter();
+  const tb=el("tbody"); tb.innerHTML="";
+  el("emptyMsg").classList.toggle("hidden", rows.length>0);
+  let total=0; const donors=new Set();
+  for(const r of rows){
+    total+=r.amount; donors.add(donorKey(r.last,r.first));
+    const idx=state.rows.indexOf(r);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${r.date||"—"}</td>
+      <td>${esc(displayName(r))}</td>
+      <td class="amt">${fmt.format(r.amount)}</td>
+      <td><span class="tag">${esc(r.type)}</span></td>
+      <td class="notes">${esc(r.notes||"")}</td>
+      <td><span class="rowdel" data-i="${idx}">Delete</span></td>`;
+    tb.appendChild(tr);
+  }
+  el("stCount").textContent=rows.length;
+  el("stTotal").textContent=fmt.format(total);
+  el("stDonors").textContent=donors.size;
+  document.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{
+    state.rows.splice(parseInt(b.dataset.i),1); persist(); render();
+  });
+  document.querySelectorAll("th[data-sort] .arw").forEach(a=>a.textContent="");
+  const th=document.querySelector(`th[data-sort="${sortKey}"] .arw`); if(th) th.textContent=sortDir<0?"▼":"▲";
+}
+
+/* ================= NEW DONATION MODAL ================= */
+function openDonationModal(){
+  const donors=donorList();
+  const today=new Date().toISOString().slice(0,10);
+  const typeOpts=DONATION_TYPES.map(t=>`<option>${t}</option>`).join("");
+  const ov=modal(`
+    <div class="mhead">New donation</div>
+    <div class="mbody">
+      <div class="ac">
+        <label>Donor name (Last, First)</label>
+        <input type="text" id="dName" autocomplete="off" placeholder="Smith, Jane">
+        <div class="ac-list hidden" id="acList"></div>
+      </div>
+      <div class="two">
+        <div><label>Amount ($)</label><input type="number" id="dAmt" step="0.01" min="0" placeholder="0.00"></div>
+        <div><label>Type</label><select id="dType">${typeOpts}</select></div>
+      </div>
+      <div><label>Date</label><input type="date" id="dDate" value="${today}"></div>
+      <div><label>Notes</label><textarea id="dNotes" rows="2" placeholder="Optional"></textarea></div>
+      <div class="err" id="dErr"></div>
+    </div>
+    <div class="mfoot">
+      <button class="ghost" data-close>Cancel</button>
+      <button class="primary" id="dSave">Save donation</button>
+    </div>`);
+
+  // autocomplete
+  const inp=el("dName"), list=el("acList"); let active=-1, shown=[];
+  function refresh(){
+    const q=inp.value.trim().toLowerCase();
+    shown = q ? donors.filter(d=>displayName(d).toLowerCase().includes(q)).slice(0,50) : donors.slice(0,50);
+    const exact = donors.some(d=>displayName(d).toLowerCase()===q);
+    let html=shown.map((d,i)=>`<div class="ac-item" data-i="${i}">${esc(displayName(d))}</div>`).join("");
+    if(q && !exact) html+=`<div class="ac-item ac-new" data-new="1">+ Add new donor “${esc(inp.value.trim())}”</div>`;
+    list.innerHTML=html; active=-1;
+    list.classList.toggle("hidden", !html);
+    list.querySelectorAll("[data-i]").forEach(it=>it.onclick=()=>{inp.value=displayName(shown[+it.dataset.i]);list.classList.add("hidden");});
+    const nw=list.querySelector("[data-new]"); if(nw) nw.onclick=()=>{list.classList.add("hidden");inp.focus();};
+  }
+  inp.addEventListener("input",refresh);
+  inp.addEventListener("focus",refresh);
+  inp.addEventListener("keydown",e=>{
+    const items=list.querySelectorAll(".ac-item");
+    if(e.key==="ArrowDown"){active=Math.min(active+1,items.length-1);e.preventDefault();}
+    else if(e.key==="ArrowUp"){active=Math.max(active-1,0);e.preventDefault();}
+    else if(e.key==="Enter"){ if(active>-1&&items[active]){items[active].click();e.preventDefault();} return;}
+    items.forEach((it,i)=>it.classList.toggle("active",i===active));
+  });
+  document.addEventListener("click",e=>{ if(!e.target.closest(".ac")) list.classList.add("hidden"); },{capture:true});
+
+  el("dSave").onclick=()=>{
+    const raw=inp.value.trim();
+    const [last,first]=splitName(raw);
+    const amount=parseFloat(el("dAmt").value);
+    if(!last){ el("dErr").textContent="Please enter a donor name."; return; }
+    if(isNaN(amount)||amount<0){ el("dErr").textContent="Please enter a valid amount."; return; }
+    const rec={last,first,date:el("dDate").value||new Date().toISOString().slice(0,10),amount,type:el("dType").value,notes:el("dNotes").value.trim()};
+    const exists=donors.some(d=>donorKey(d.last,d.first)===donorKey(last,first));
+    if(!exists){
+      confirmNewDonor(displayName({last,first}), ()=>{ commit(rec,ov); });
+    } else { commit(rec,ov); }
+  };
+  setTimeout(()=>inp.focus(),50);
+}
+function commit(rec,ov){ state.rows.push(rec); persist(); render(); close(ov); toast("Donation added."); }
+
+function confirmNewDonor(name, onYes){
+  const ov=modal(`
+    <div class="mhead">Add new donor?</div>
+    <div class="mbody"><p>“${esc(name)}” isn’t in your records yet. Add them as a new donor?</p></div>
+    <div class="mfoot"><button data-close>No</button><button class="primary" id="cYes">Yes, add</button></div>`,"confirm");
+  el("cYes").onclick=()=>{ onYes(); close(ov); };
+}
+
+/* ================= MODAL HELPERS ================= */
+function modal(inner, extraClass=""){
+  const ov=document.createElement("div"); ov.className="overlay";
+  ov.innerHTML=`<div class="modal ${extraClass}">${inner}</div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener("mousedown",e=>{ if(e.target===ov) close(ov); });
+  ov.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>close(ov));
+  return ov;
+}
+function close(ov){ ov.remove(); }
+
+/* ================= SAVE / EXPORT ================= */
+function rowsToGrid(rows){
+  const head=["LastName","FirstName","Date","Amount","Type","Notes"];
+  return [head, ...rows.map(r=>[r.last,r.first,r.date,r.amount.toFixed(2),r.type,r.notes])];
+}
+function download(rows, prefix){
+  const csv=toCSV(rowsToGrid(rows));
+  const stamp=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=`${prefix}_${stamp}.csv`; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ================= PERSISTENCE ================= */
+function persist(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+function loadPersist(){ try{ const s=localStorage.getItem(STORAGE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
+
+/* ================= APP LIFECYCLE ================= */
+function openApp(){
+  el("start").classList.add("hidden");
+  el("app").classList.remove("hidden");
+  el("fileLabel").textContent = state.fileName || "new file";
+  const sel=el("fType"); sel.innerHTML=`<option value="">All types</option>`+DONATION_TYPES.map(t=>`<option>${t}</option>`).join("");
+  persist(); render();
+}
+function el(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+let toastT;
+function toast(msg){ const t=el("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),2200); }
+
+/* ================= EVENT WIRING ================= */
+// start screen
+el("btnNewFile").onclick=()=>{ state={rows:[],fileName:"new file"}; openApp(); };
+el("btnBrowse").onclick=()=>el("fileInput").click();
+el("dropzone").onclick=()=>el("fileInput").click();
+el("fileInput").onchange=e=>{ const f=e.target.files[0]; if(f) readFile(f); };
+function readFile(f){ const r=new FileReader(); r.onload=()=>importCSV(r.result, f.name); r.readAsText(f); }
+
+const dz=el("dropzone");
+["dragenter","dragover"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add("drag");}));
+["dragleave","drop"].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove("drag");}));
+dz.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+
+// restore
+(function(){ const s=loadPersist(); if(s&&s.rows&&s.rows.length){ el("restoreRow").classList.remove("hidden"); el("btnRestore").onclick=()=>{ state=s; openApp(); }; } })();
+
+// app bar
+el("btnNewDonation").onclick=openDonationModal;
+el("btnSave").onclick=()=>{ download(state.rows,"donations"); toast("Saved a new CSV to your downloads."); };
+el("btnExport").onclick=()=>{ download(applyFilter(),"donations_filtered"); toast("Exported filtered results."); };
+el("btnClose").onclick=()=>{ persist(); el("app").classList.add("hidden"); el("start").classList.remove("hidden"); (function(){const s=loadPersist(); if(s&&s.rows&&s.rows.length) el("restoreRow").classList.remove("hidden");})(); };
+
+// filters
+["fRange","fType","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{
+  const ev = (id==="fName"||id==="fMin"||id==="fMax")?"input":"change";
+  el(id).addEventListener(ev, ()=>{
+    const custom=el("fRange").value==="custom";
+    el("customFrom").classList.toggle("hidden",!custom);
+    el("customTo").classList.toggle("hidden",!custom);
+    render();
+  });
+});
+el("btnClearFilters").onclick=()=>{ ["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value=""); el("fRange").value="all"; el("fType").value=""; el("customFrom").classList.add("hidden"); el("customTo").classList.add("hidden"); render(); };
+
+// sorting
+document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{
+  const k=th.dataset.sort;
+  if(sortKey===k) sortDir*=-1; else { sortKey=k; sortDir=(k==="date")?-1:1; }
+  render();
+});
+
+// drag-drop anywhere while in app
+let dragOv;
+window.addEventListener("dragover",e=>{ if(el("app").classList.contains("hidden"))return; e.preventDefault(); if(!dragOv){ dragOv=document.createElement("div"); dragOv.id="appDrop"; dragOv.textContent="Drop CSV to load"; document.body.appendChild(dragOv);} });
+window.addEventListener("dragleave",e=>{ if(e.clientX<=0||e.clientY<=0||e.clientX>=innerWidth||e.clientY>=innerHeight){ if(dragOv){dragOv.remove();dragOv=null;} } });
+window.addEventListener("drop",e=>{ if(dragOv){dragOv.remove();dragOv=null;} if(el("app").classList.contains("hidden"))return; e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+</script>
+</body>
+</html>
