@@ -78,6 +78,7 @@
   td.notes{white-space:normal;max-width:280px;color:var(--muted)}
   tr:hover td{background:#fafbfc}
   .tag{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;background:#eef0f3;color:#414b57}
+  .biz{margin-left:8px;font-size:10.5px;font-weight:600;color:var(--muted);background:#f1f3f5;padding:1px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
   .rowdel{color:var(--danger);cursor:pointer;opacity:0;font-size:12px}
   tr:hover .rowdel{opacity:1}
   .empty{padding:44px;text-align:center;color:var(--muted)}
@@ -88,6 +89,8 @@
   .modal .mbody{padding:20px;display:grid;gap:14px}
   .modal .mfoot{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;gap:10px;justify-content:flex-end}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .chk{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500;color:var(--text);margin:-4px 0 0;cursor:pointer}
+  .chk input{width:auto;box-shadow:none}
   .confirm{max-width:440px}
   .warnbox{background:var(--warn-soft);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px}
   .warnbox table{width:100%}
@@ -98,6 +101,7 @@
   .ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);max-height:210px;overflow-y:auto;z-index:60}
   .ac-item{padding:9px 12px;cursor:pointer;font-size:13px}
   .ac-item:hover,.ac-item.active{background:var(--primary-soft)}
+  .ac-item small{color:var(--muted)}
   .ac-new{color:var(--primary);font-weight:600}
   .err{color:var(--danger);font-size:12px;min-height:1px}
 
@@ -158,7 +162,7 @@
       <div id="customFrom" class="hidden"><label>From</label><input type="date" id="fFrom"></div>
       <div id="customTo" class="hidden"><label>To</label><input type="date" id="fTo"></div>
       <div><label>Type</label><select id="fType"><option value="">All types</option></select></div>
-      <div><label>Donor name contains</label><input type="text" id="fName" placeholder="e.g. smith"></div>
+      <div><label>Donor name contains</label><input type="text" id="fName" placeholder="e.g. smith or bank"></div>
       <div><label>Amount ($)</label><div class="row2"><input type="number" id="fMin" placeholder="min" step="0.01"><input type="number" id="fMax" placeholder="max" step="0.01"></div></div>
     </div>
 
@@ -179,7 +183,7 @@
       <table>
         <thead><tr>
           <th data-sort="date">Date <span class="arw"></span></th>
-          <th data-sort="name">Donor (Last, First) <span class="arw"></span></th>
+          <th data-sort="name">Donor <span class="arw"></span></th>
           <th data-sort="amount" class="amt">Amount <span class="arw"></span></th>
           <th data-sort="type">Type <span class="arw"></span></th>
           <th>Notes</th>
@@ -199,14 +203,14 @@
 const DONATION_TYPES=["Card","PayPal","Cash","Check","Other"];
 const STORAGE_KEY="donation_ledger_autosave_v1";
 const META_KEY="donation_ledger_lastmeta_v1";
-const HAS_FSA = ('showOpenFilePicker' in window) && ('showSaveFilePicker' in window);
+const HAS_FSA=('showOpenFilePicker' in window)&&('showSaveFilePicker' in window);
 
 /* ================= STATE ================= */
 let state={rows:[],fileName:"",version:0};
 let sortKey="date",sortDir=-1;
-let fileHandle=null; // FileSystemFileHandle when available
+let fileHandle=null;
 
-/* ================= tiny IndexedDB (for the file handle) ============ */
+/* ================= tiny IndexedDB (file handle) ============ */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ledger_db",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function idbSet(k,v){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error);});}
 async function idbGet(k){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction("kv","readonly");const q=t.objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error);});}
@@ -224,17 +228,15 @@ function parseCSV(text){
 function toCSV(arr){return arr.map(r=>r.map(c=>{const s=(c==null?"":String(c));return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\r\n");}
 function normalizeDate(s){s=(s||"").trim();if(!s)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m){let[,mo,d,y]=m;if(y.length===2)y="20"+y;return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;}const t=new Date(s);if(!isNaN(t))return t.toISOString().slice(0,10);return s;}
 function parseAmount(s){const n=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;}
-function splitName(s){s=(s||"").trim();const i=s.indexOf(",");if(i>-1)return[s.slice(0,i).trim(),s.slice(i+1).trim()];const p=s.split(/\s+/);if(p.length>1)return[p[p.length-1],p.slice(0,-1).join(" ")];return[s,""];}
+// comma-only split. No comma => keep verbatim (person or business, we don't guess).
+function splitName(s){s=(s||"").trim();const i=s.indexOf(",");if(i>-1)return[s.slice(0,i).trim(),s.slice(i+1).trim()];return[s,""];}
+function truthy(s){return /^(true|1|yes|y|org|x)$/i.test(String(s||"").trim());}
 
 /* ================= META (staleness protection) ================= */
 function readMeta(){try{const s=localStorage.getItem(META_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
 function latestDateOf(rows){return rows.reduce((m,r)=>r.date>m?r.date:m,"");}
 function buildMetaLine(){return `# LEDGER_META saved=${new Date().toISOString()} version=${state.version} records=${state.rows.length} latestDate=${latestDateOf(state.rows)||"none"}`;}
-function parseMetaLine(line){
-  if(!line||!line.startsWith("#"))return null;
-  const get=k=>{const m=line.match(new RegExp(k+"=([^\\s]+)"));return m?m[1]:null;};
-  return {version:parseInt(get("version"))||0, records:parseInt(get("records"))||0, latestDate:get("latestDate")||"", saved:get("saved")||""};
-}
+function parseMetaLine(line){if(!line||!line.startsWith("#"))return null;const get=k=>{const m=line.match(new RegExp(k+"=([^\\s]+)"));return m?m[1]:null;};return{version:parseInt(get("version"))||0,records:parseInt(get("records"))||0,latestDate:get("latestDate")||"",saved:get("saved")||""};}
 
 /* ================= IMPORT ================= */
 function importText(text,name,handle){
@@ -242,14 +244,9 @@ function importText(text,name,handle){
   if(text.startsWith("#")){const nl=text.indexOf("\n");metaLine=text.slice(0,nl);text=text.slice(nl+1);}
   const incoming=parseMetaLine(metaLine);
   const baseline=readMeta();
-  const suspicious = baseline && (
-    !incoming ? false : // no embedded meta -> can't compare reliably, don't nag
-    (incoming.version < baseline.version || incoming.records < baseline.records ||
-     (incoming.latestDate && baseline.latestDate && incoming.latestDate < baseline.latestDate))
-  );
+  const suspicious=baseline&&incoming&&(incoming.version<baseline.version||incoming.records<baseline.records||(incoming.latestDate&&baseline.latestDate&&incoming.latestDate<baseline.latestDate));
   const proceed=()=>doImport(text,name,handle,incoming);
-  if(suspicious) warnStale(baseline,incoming,name,proceed);
-  else proceed();
+  if(suspicious)warnStale(baseline,incoming,name,proceed);else proceed();
 }
 function doImport(text,name,handle,incoming){
   const grid=parseCSV(text);
@@ -258,25 +255,30 @@ function doImport(text,name,handle,incoming){
   const iLast=head.findIndex(h=>/^(last|lastname|last name)$/.test(h));
   const iFirst=head.findIndex(h=>/^(first|firstname|first name)$/.test(h));
   const iName=head.findIndex(h=>/^name$/.test(h));
+  const iOrg=head.findIndex(h=>/^(org|organization|organisation|business|company|isorg)$/.test(h));
   const iDate=head.findIndex(h=>/date/.test(h));
   const iAmt=head.findIndex(h=>/amount|amt|value/.test(h));
   const iType=head.findIndex(h=>/type|method/.test(h));
   const iNote=head.findIndex(h=>/note/.test(h));
-  const hasHeader=[iLast,iFirst,iName,iDate,iAmt,iType].some(x=>x>-1);
+  const hasHeader=[iLast,iFirst,iName,iDate,iAmt,iType,iOrg].some(x=>x>-1);
   const dataRows=hasHeader?grid.slice(1):grid;
   const rows=[];
   for(const r of dataRows){
+    const org=iOrg>-1?truthy(r[iOrg]):false;
     let last="",first="";
     if(iLast>-1){last=(r[iLast]||"").trim();first=(iFirst>-1?(r[iFirst]||"").trim():"");}
-    else if(iName>-1){[last,first]=splitName(r[iName]);}
-    else{last=(r[0]||"").trim();first=(r[1]||"").trim();if((r[0]||"").includes(",")&&!first){[last,first]=splitName(r[0]);}}
+    else if(iName>-1){ if(org){last=(r[iName]||"").trim();first="";} else {[last,first]=splitName(r[iName]);} }
+    else{ // headerless positional: Last, First, Date, Amount, Type, Notes
+      last=(r[0]||"").trim();first=(r[1]||"").trim();
+      if(!first&&last.includes(","))[last,first]=splitName(last);
+    }
     const date=normalizeDate(iDate>-1?r[iDate]:(hasHeader?"":r[2]));
     const amount=parseAmount(iAmt>-1?r[iAmt]:(hasHeader?0:r[3]));
     let type=(iType>-1?r[iType]:(hasHeader?"":r[4])||"").trim();
     type=DONATION_TYPES.find(t=>t.toLowerCase()===type.toLowerCase())||(type||"Other");
     const notes=(iNote>-1?r[iNote]:(hasHeader?"":r[5])||"").trim();
     if(!last&&!first)continue;
-    rows.push({last,first,date,amount,type,notes});
+    rows.push({last,first,date,amount,type,notes,org});
   }
   state.rows=rows;
   state.fileName=name||"imported.csv";
@@ -304,7 +306,7 @@ function warnStale(baseline,incoming,name,onProceed){
 
 /* ================= DERIVED ================= */
 function donorKey(l,f){return (l||"").toLowerCase()+"|"+(f||"").toLowerCase();}
-function donorList(){const map=new Map();for(const r of state.rows){const k=donorKey(r.last,r.first);if(!map.has(k))map.set(k,{last:r.last,first:r.first});}return[...map.values()].sort((a,b)=>(a.last+a.first).localeCompare(b.last+b.first));}
+function donorList(){const map=new Map();for(const r of state.rows){const k=donorKey(r.last,r.first);if(!map.has(k))map.set(k,{last:r.last,first:r.first,org:!!r.org});}return[...map.values()].sort((a,b)=>displayName(a).localeCompare(displayName(b)));}
 function displayName(r){return r.last+(r.first?", "+r.first:"");}
 
 /* ================= FILTER ================= */
@@ -335,18 +337,17 @@ function render(){
   for(const r of rows){
     total+=r.amount;
     const k=donorKey(r.last,r.first);
-    if(!donorSums.has(k))donorSums.set(k,{name:displayName(r),sum:0,count:0});
+    if(!donorSums.has(k))donorSums.set(k,{name:displayName(r),org:!!r.org,sum:0,count:0});
     const d=donorSums.get(k);d.sum+=r.amount;d.count++;
     const idx=state.rows.indexOf(r);
     const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${r.date||"—"}</td><td>${esc(displayName(r))}</td><td class="amt">${fmt.format(r.amount)}</td><td><span class="tag">${esc(r.type)}</span></td><td class="notes">${esc(r.notes||"")}</td><td><span class="rowdel" data-i="${idx}">Delete</span></td>`;
+    tr.innerHTML=`<td>${r.date||"—"}</td><td>${esc(displayName(r))}${r.org?'<span class="biz">Business</span>':''}</td><td class="amt">${fmt.format(r.amount)}</td><td><span class="tag">${esc(r.type)}</span></td><td class="notes">${esc(r.notes||"")}</td><td><span class="rowdel" data-i="${idx}">Delete</span></td>`;
     tb.appendChild(tr);
   }
   el("stTotal").textContent=fmt.format(total);
   el("stCount").textContent=rows.length;
   el("stDonors").textContent=donorSums.size;
 
-  // single-donor: filtered total + all-time total
   const single=el("singleDonor");
   if(donorSums.size===1){
     const [k,d]=[...donorSums.entries()][0];
@@ -357,11 +358,10 @@ function render(){
     single.classList.remove("hidden");
   } else single.classList.add("hidden");
 
-  // multi-donor breakdown
   const box=el("donorBox"),list=el("donorList");
   if(donorSums.size>1){
     const sorted=[...donorSums.values()].sort((a,b)=>b.sum-a.sum);
-    list.innerHTML=sorted.map(d=>`<div class="drow"><span class="dn">${esc(d.name)}<span class="dc">${d.count} donation${d.count!==1?"s":""}</span></span><span class="dv">${fmt.format(d.sum)}</span></div>`).join("");
+    list.innerHTML=sorted.map(d=>`<div class="drow"><span class="dn">${esc(d.name)}${d.org?'<span class="dc">business</span>':''}<span class="dc">${d.count} donation${d.count!==1?"s":""}</span></span><span class="dv">${fmt.format(d.sum)}</span></div>`).join("");
     box.classList.remove("hidden");
   } else box.classList.add("hidden");
 
@@ -378,70 +378,68 @@ function openDonationModal(){
   const ov=modal(`
     <div class="mhead">New donation</div>
     <div class="mbody">
-      <div class="ac"><label>Donor name (Last, First)</label><input type="text" id="dName" autocomplete="off" placeholder="Smith, Jane"><div class="ac-list hidden" id="acList"></div></div>
+      <div class="ac"><label>Donor name</label><input type="text" id="dName" autocomplete="off" placeholder="Smith, Jane  —  or  —  Bank of America"><div class="ac-list hidden" id="acList"></div></div>
+      <label class="chk"><input type="checkbox" id="dOrg"> Business / organization — keep the name exactly as typed</label>
       <div class="two"><div><label>Amount ($)</label><input type="number" id="dAmt" step="0.01" min="0" placeholder="0.00"></div><div><label>Type</label><select id="dType">${typeOpts}</select></div></div>
       <div><label>Date</label><input type="date" id="dDate" value="${today}"></div>
       <div><label>Notes</label><textarea id="dNotes" rows="2" placeholder="Optional"></textarea></div>
       <div class="err" id="dErr"></div>
     </div>
     <div class="mfoot"><button class="ghost" data-close>Cancel</button><button class="primary" id="dSave">Save donation</button></div>`);
-  const inp=el("dName"),list=el("acList");let active=-1,shown=[];
+  const inp=el("dName"),list=el("acList"),orgBox=el("dOrg");let active=-1,shown=[];
   function refresh(){
     const q=inp.value.trim().toLowerCase();
     shown=q?donors.filter(d=>displayName(d).toLowerCase().includes(q)).slice(0,50):donors.slice(0,50);
     const exact=donors.some(d=>displayName(d).toLowerCase()===q);
-    let html=shown.map((d,i)=>`<div class="ac-item" data-i="${i}">${esc(displayName(d))}</div>`).join("");
-    if(q&&!exact)html+=`<div class="ac-item ac-new" data-new="1">+ Add new donor “${esc(inp.value.trim())}”</div>`;
+    let html=shown.map((d,i)=>`<div class="ac-item" data-i="${i}">${esc(displayName(d))}${d.org?'<small> · business</small>':''}</div>`).join("");
+    if(q&&!exact)html+=`<div class="ac-item ac-new" data-new="1">+ Add new ${orgBox.checked?"organization":"donor"} “${esc(inp.value.trim())}”</div>`;
     list.innerHTML=html;active=-1;list.classList.toggle("hidden",!html);
-    list.querySelectorAll("[data-i]").forEach(it=>it.onclick=()=>{inp.value=displayName(shown[+it.dataset.i]);list.classList.add("hidden");});
+    list.querySelectorAll("[data-i]").forEach(it=>it.onclick=()=>{const d=shown[+it.dataset.i];inp.value=displayName(d);orgBox.checked=!!d.org;list.classList.add("hidden");});
     const nw=list.querySelector("[data-new]");if(nw)nw.onclick=()=>{list.classList.add("hidden");inp.focus();};
   }
   inp.addEventListener("input",refresh);inp.addEventListener("focus",refresh);
+  orgBox.addEventListener("change",refresh);
   inp.addEventListener("keydown",e=>{const items=list.querySelectorAll(".ac-item");if(e.key==="ArrowDown"){active=Math.min(active+1,items.length-1);e.preventDefault();}else if(e.key==="ArrowUp"){active=Math.max(active-1,0);e.preventDefault();}else if(e.key==="Enter"){if(active>-1&&items[active]){items[active].click();e.preventDefault();}return;}items.forEach((it,i)=>it.classList.toggle("active",i===active));});
   document.addEventListener("click",e=>{if(!e.target.closest(".ac"))list.classList.add("hidden");},{capture:true});
   el("dSave").onclick=()=>{
-    const raw=inp.value.trim();const[last,first]=splitName(raw);const amount=parseFloat(el("dAmt").value);
-    if(!last){el("dErr").textContent="Please enter a donor name.";return;}
+    const raw=inp.value.trim();const amount=parseFloat(el("dAmt").value);
+    if(!raw){el("dErr").textContent="Please enter a name.";return;}
     if(isNaN(amount)||amount<0){el("dErr").textContent="Please enter a valid amount.";return;}
-    const rec={last,first,date:el("dDate").value||new Date().toISOString().slice(0,10),amount,type:el("dType").value,notes:el("dNotes").value.trim()};
-    const exists=donors.some(d=>donorKey(d.last,d.first)===donorKey(last,first));
-    if(!exists)confirmNewDonor(displayName({last,first}),()=>commit(rec,ov));
-    else commit(rec,ov);
+    // If the typed name matches an existing donor, inherit its person/business setting.
+    const existing=donors.find(d=>displayName(d).toLowerCase()===raw.toLowerCase());
+    const isOrg=orgBox.checked||(existing&&existing.org);
+    let last,first;
+    if(isOrg){last=raw;first="";}else{[last,first]=splitName(raw);}
+    const rec={last,first,org:!!isOrg,date:el("dDate").value||new Date().toISOString().slice(0,10),amount,type:el("dType").value,notes:el("dNotes").value.trim()};
+    if(!existing)confirmNewDonor(raw,isOrg,()=>commit(rec,ov));else commit(rec,ov);
   };
   setTimeout(()=>inp.focus(),50);
 }
 function commit(rec,ov){state.rows.push(rec);persist();render();close(ov);toast("Donation added.");}
-function confirmNewDonor(name,onYes){const ov=modal(`<div class="mhead">Add new donor?</div><div class="mbody"><p>“${esc(name)}” isn’t in your records yet. Add them as a new donor?</p></div><div class="mfoot"><button data-close>No</button><button class="primary" id="cYes">Yes, add</button></div>`,"confirm");el("cYes").onclick=()=>{onYes();close(ov);};}
+function confirmNewDonor(name,isOrg,onYes){const word=isOrg?"organization":"donor";const ov=modal(`<div class="mhead">Add new ${word}?</div><div class="mbody"><p>“${esc(name)}” isn’t in your records yet. Add ${isOrg?"it":"them"} as a new ${word}?</p></div><div class="mfoot"><button data-close>No</button><button class="primary" id="cYes">Yes, add</button></div>`,"confirm");el("cYes").onclick=()=>{onYes();close(ov);};}
 
 /* ================= MODAL ================= */
 function modal(inner,extra=""){const ov=document.createElement("div");ov.className="overlay";ov.innerHTML=`<div class="modal ${extra}">${inner}</div>`;document.body.appendChild(ov);ov.addEventListener("mousedown",e=>{if(e.target===ov)close(ov);});ov.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>close(ov));return ov;}
 function close(ov){ov.remove();}
 
 /* ================= SAVE / EXPORT ================= */
-function rowsToGrid(rows){return[["LastName","FirstName","Date","Amount","Type","Notes"],...rows.map(r=>[r.last,r.first,r.date,r.amount.toFixed(2),r.type,r.notes])];}
+function rowsToGrid(rows){return[["LastName","FirstName","Org","Date","Amount","Type","Notes"],...rows.map(r=>[r.last,r.first,r.org?"TRUE":"",r.date,r.amount.toFixed(2),r.type,r.notes])];}
 function serialize(rows,includeMeta){const body=toCSV(rowsToGrid(rows));return includeMeta?buildMetaLine()+"\r\n"+body:body;}
 function stampName(prefix){const s=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");return `${prefix}_${s}.csv`;}
 function downloadText(text,filename){const blob=new Blob([text],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);}
 async function writeToHandle(handle,text){const w=await handle.createWritable();await w.write(text);await w.close();}
-function commitMeta(){const meta={version:state.version,records:state.rows.length,latestDate:latestDateOf(state.rows),saved:new Date().toISOString(),fileName:state.fileName};localStorage.setItem(META_KEY,JSON.stringify(meta));}
-
+function commitMeta(){localStorage.setItem(META_KEY,JSON.stringify({version:state.version,records:state.rows.length,latestDate:latestDateOf(state.rows),saved:new Date().toISOString(),fileName:state.fileName}));}
 async function saveFlow(){
   state.version=(state.version||0)+1;
   const text=serialize(state.rows,true);
   try{
     if(HAS_FSA){
-      if(!fileHandle){
-        fileHandle=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
-        await idbSet("fileHandle",fileHandle);
-      }
+      if(!fileHandle){fileHandle=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});await idbSet("fileHandle",fileHandle);}
       await writeToHandle(fileHandle,text);
       state.fileName=fileHandle.name;el("fileLabel").textContent=fileHandle.name;
       commitMeta();persist();toast("Saved to "+fileHandle.name);
-    } else {
-      downloadText(text,stampName("donations"));
-      commitMeta();persist();toast("Saved a new CSV to your downloads.");
-    }
-  }catch(e){ if(e.name!=="AbortError"){ downloadText(text,stampName("donations")); commitMeta(); persist(); toast("Saved via download."); } else { state.version--; } }
+    } else { downloadText(text,stampName("donations"));commitMeta();persist();toast("Saved a new CSV to your downloads."); }
+  }catch(e){ if(e.name!=="AbortError"){downloadText(text,stampName("donations"));commitMeta();persist();toast("Saved via download.");} else state.version--; }
 }
 function exportFiltered(){downloadText(serialize(applyFilter(),false),stampName("donations_filtered"));toast("Exported filtered results.");}
 
@@ -449,21 +447,12 @@ function exportFiltered(){downloadText(serialize(applyFilter(),false),stampName(
 function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}}
 function loadPersist(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
 
-/* ================= FILE OPEN (handle-aware) ================= */
+/* ================= FILE OPEN ================= */
 async function openViaPicker(){
-  if(HAS_FSA){
-    try{const[h]=await window.showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});const f=await h.getFile();await idbSet("fileHandle",h);importText(await f.text(),h.name,h);}
-    catch(e){if(e.name!=="AbortError")toast("Could not open file.");}
-  } else el("fileInput").click();
+  if(HAS_FSA){try{const[h]=await window.showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});const f=await h.getFile();await idbSet("fileHandle",h);importText(await f.text(),h.name,h);}catch(e){if(e.name!=="AbortError")toast("Could not open file.");}}
+  else el("fileInput").click();
 }
-async function resumeHandle(h){
-  try{
-    let p=await h.queryPermission({mode:"readwrite"});
-    if(p!=="granted"){p=await h.requestPermission({mode:"readwrite"});}
-    if(p!=="granted"){toast("Permission not granted.");return;}
-    const f=await h.getFile();importText(await f.text(),h.name,h);
-  }catch(e){toast("Could not reopen that file.");}
-}
+async function resumeHandle(h){try{let p=await h.queryPermission({mode:"readwrite"});if(p!=="granted")p=await h.requestPermission({mode:"readwrite"});if(p!=="granted"){toast("Permission not granted.");return;}const f=await h.getFile();importText(await f.text(),h.name,h);}catch(e){toast("Could not reopen that file.");}}
 
 /* ================= APP LIFECYCLE ================= */
 function openApp(){el("start").classList.add("hidden");el("app").classList.remove("hidden");el("fileLabel").textContent=state.fileName||"new file";const sel=el("fType");sel.innerHTML=`<option value="">All types</option>`+DONATION_TYPES.map(t=>`<option>${t}</option>`).join("");persist();render();}
@@ -484,13 +473,10 @@ dz.addEventListener("drop",e=>handleDrop(e));
 
 async function handleDrop(e){
   const item=e.dataTransfer.items&&e.dataTransfer.items[0];
-  if(item&&item.getAsFileSystemHandle&&HAS_FSA){
-    try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==="file"){await idbSet("fileHandle",h);const f=await h.getFile();importText(await f.text(),h.name,h);return;}}catch(_){}
-  }
+  if(item&&item.getAsFileSystemHandle&&HAS_FSA){try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==="file"){await idbSet("fileHandle",h);const f=await h.getFile();importText(await f.text(),h.name,h);return;}}catch(_){}}
   const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=()=>importText(r.result,f.name,null);r.readAsText(f);}
 }
 
-// resume options on start screen
 (async function(){
   const s=loadPersist();
   if(s&&s.rows&&s.rows.length){el("resumeLocal").classList.remove("hidden");el("btnRestore").onclick=()=>{state=s;openApp();};}
@@ -504,9 +490,7 @@ el("btnClose").onclick=()=>{persist();el("app").classList.add("hidden");el("star
 
 ["fRange","fType","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{const ev=(id==="fName"||id==="fMin"||id==="fMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fRange").value==="custom";el("customFrom").classList.toggle("hidden",!custom);el("customTo").classList.toggle("hidden",!custom);render();});});
 el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value="");el("fRange").value="all";el("fType").value="";el("customFrom").classList.add("hidden");el("customTo").classList.add("hidden");render();};
-
 el("donorToggle").onclick=()=>{const l=el("donorList"),c=el("donorCaret");const hid=l.classList.toggle("hidden");c.textContent=hid?"▸":"▾";};
-
 document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==="date")?-1:1;}render();});
 
 let dragOv;
