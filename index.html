@@ -19,6 +19,8 @@
   button.primary:hover{background:var(--primary-d)}
   button.ghost{background:transparent;border-color:transparent}
   button.ghost:hover{background:#eceef1}
+  button.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  button.danger:hover{background:#b91c1c}
   input,select,textarea{font:inherit;color:var(--text);background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-soft)}
   label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 5px}
@@ -26,20 +28,26 @@
   .muted{color:var(--muted)}
 
   #start{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  #start .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);max-width:520px;width:100%;padding:36px;text-align:center}
+  #start .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);max-width:540px;width:100%;padding:34px;text-align:center}
   #start h1{margin:0 0 6px;font-size:22px}
-  #start p{color:var(--muted);margin:0 0 26px}
-  #dropzone{border:2px dashed var(--line);border-radius:12px;padding:34px 20px;margin-bottom:16px;transition:.15s;cursor:pointer}
+  #start p.tag{color:var(--muted);margin:0 0 24px}
+  #btnContinue{display:block;width:100%;padding:16px 18px;text-align:left;line-height:1.3}
+  #btnContinue .bl{display:block;font-size:15.5px;font-weight:700}
+  #btnContinue .bs{display:block;font-size:12.5px;opacity:.88;margin-top:3px}
+  .orline{color:var(--muted);font-size:12px;margin:16px 0 14px;position:relative}
+  .orline::before,.orline::after{content:"";position:absolute;top:50%;width:calc(50% - 18px);height:1px;background:var(--line)}
+  .orline::before{left:0}.orline::after{right:0}
+  #dropzone{border:2px dashed var(--line);border-radius:12px;padding:26px 20px;margin-bottom:14px;transition:.15s;cursor:pointer}
   #dropzone:hover{border-color:var(--primary);background:var(--primary-soft)}
   #dropzone.drag{border-color:var(--primary);background:var(--primary-soft)}
   #dropzone .big{font-size:15px;font-weight:600}
   #dropzone .sub{color:var(--muted);font-size:12.5px;margin-top:4px}
   .start-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-  .resume{margin-top:18px;font-size:13px;color:var(--muted)}
-  .resume a{color:var(--primary);cursor:pointer;font-weight:600}
+  .cnt{color:var(--muted);font-size:12px}
+  #startNote{margin-top:18px;font-size:12px;color:var(--muted);line-height:1.5}
 
   #app{max-width:1180px;margin:0 auto;padding:18px}
-  header.bar{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:16px;flex-wrap:wrap}
+  header.bar{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 16px;margin-bottom:16px;flex-wrap:wrap}
   header.bar .brand{font-weight:700;font-size:16px}
   header.bar .file{font-size:12.5px;color:var(--muted);background:#f1f3f5;border-radius:6px;padding:4px 9px}
   header.bar .spacer{flex:1}
@@ -47,6 +55,10 @@
   .tab{background:transparent;border:none;padding:7px 14px;border-radius:7px;font-weight:600;font-size:13px;color:var(--muted)}
   .tab:hover{background:#e7eaee}
   .tab.active{background:#fff;color:var(--primary-d);box-shadow:0 1px 2px rgba(18,28,45,.10)}
+  .pill{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:#ecfdf3;color:#15803d}
+  .pill.warn{background:var(--warn-soft);color:var(--warn)}
+  .pill.bad{background:#fef2f2;color:#b91c1c}
 
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:16px}
   .panel .phead{padding:12px 16px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -110,18 +122,32 @@
 
   .overlay{position:fixed;inset:0;background:rgba(20,28,40,.42);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow-y:auto}
   .modal{background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(10,20,40,.28);width:100%;max-width:480px;margin:auto}
+  .modal.wide{max-width:620px}
   .modal .mhead{padding:16px 20px;border-bottom:1px solid var(--line-2);font-weight:700;font-size:15px}
   .modal .mbody{padding:20px;display:grid;gap:14px}
-  .modal .mfoot{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;gap:10px;justify-content:flex-end}
+  .modal .mbody p{margin:0}
+  .modal .mfoot{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
   .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .chk{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500;color:var(--text);margin:-4px 0 0;cursor:pointer}
   .chk input{width:auto;box-shadow:none}
-  .confirm{max-width:440px}
+  .confirm{max-width:460px}
   .warnbox{background:var(--warn-soft);border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;font-size:13px}
   .warnbox table{width:100%}
   .warnbox td{border:none;padding:3px 8px 3px 0;white-space:normal}
   .warnbox td:first-child{color:var(--muted);font-size:12px}
+  .safebox{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:11px 13px;font-size:12.5px;color:#15803d}
   .hint{font-size:11.5px;color:var(--muted);margin-top:5px}
+
+  .snaplist{display:grid;gap:8px;max-height:52vh;overflow-y:auto}
+  .snap{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .snap .sn1{font-weight:600;font-size:13px}
+  .snap .sn2{font-size:12px;color:var(--muted);margin-top:2px}
+  .snap .snb{margin-left:auto;display:flex;gap:7px;flex-shrink:0}
+  .snap .snb button{padding:6px 11px;font-size:12.5px}
+  .choose{display:grid;gap:10px}
+  .choice{border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .choice h4{margin:0 0 4px;font-size:13.5px}
+  .choice .c2{font-size:12.5px;color:var(--muted);margin-bottom:9px}
 
   .allocs{display:grid;gap:8px}
   .allocrow{display:grid;grid-template-columns:1fr 118px 32px;gap:8px;align-items:start}
@@ -141,8 +167,10 @@
   .err{color:var(--danger);font-size:12px;min-height:1px}
 
   #appDrop{position:fixed;inset:0;background:rgba(37,99,235,.10);border:3px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--primary-d);z-index:80}
-  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s}
-  .toast.show{opacity:1}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:10px 12px 10px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s;display:flex;align-items:center;gap:12px;pointer-events:none}
+  .toast.show{opacity:1;pointer-events:auto}
+  .toast .tact{background:transparent;border:1px solid rgba(255,255,255,.35);color:#fff;padding:4px 11px;font-size:12.5px;font-weight:600}
+  .toast .tact:hover{background:rgba(255,255,255,.15)}
 </style>
 </head>
 <body>
@@ -150,17 +178,26 @@
 <div id="start">
   <div class="card">
     <h1>Donation Ledger</h1>
-    <p>Track donors, accounts and transactions — all in your browser.</p>
+    <p class="tag">Track donors, accounts and transactions — all in your browser.</p>
+
+    <div id="continueBox" class="hidden">
+      <button class="primary" id="btnContinue">
+        <span class="bl">Continue where you left off</span>
+        <span class="bs" id="continueSub"></span>
+      </button>
+      <div class="orline">or</div>
+    </div>
+
     <div id="dropzone">
       <div class="big">Drag &amp; drop a CSV here</div>
       <div class="sub">or click to browse</div>
     </div>
     <div class="start-actions">
-      <button class="primary" id="btnNewFile">Start new file</button>
-      <button id="btnBrowse">Open CSV file</button>
+      <button id="btnBrowse">Open a different CSV</button>
+      <button id="btnBackups">Backups <span class="cnt" id="snapCount"></span></button>
+      <button class="ghost" id="btnNewFile">Start a blank file</button>
     </div>
-    <div id="resumeHandle" class="resume hidden">Last used: <a id="btnResumeHandle"></a></div>
-    <div id="resumeLocal" class="resume hidden">Unsaved work found — <a id="btnRestore">Restore last session</a></div>
+    <div id="startNote"></div>
     <input type="file" id="fileInput" accept=".csv,text/csv" class="hidden">
   </div>
 </div>
@@ -173,9 +210,11 @@
       <button class="tab" data-page="accounts">Accounts</button>
     </nav>
     <span class="file" id="fileLabel">new file</span>
+    <span class="pill warn" id="savePill"></span>
     <div class="spacer"></div>
     <button class="primary" id="btnNewDonation">+ New donation</button>
     <button id="btnSave">Save</button>
+    <button id="btnBackups2">Backups</button>
     <button class="ghost" id="btnClose">Close</button>
   </header>
 
@@ -244,7 +283,7 @@
     <div class="panel">
       <div class="phead"><h2>Accounts</h2>
         <div class="spacer" style="flex:1"></div>
-        <span class="s" id="acctTotal" style="font-size:12.5px;color:var(--muted)"></span>
+        <span id="acctTotal" style="font-size:12.5px;color:var(--muted)"></span>
         <button id="btnNewAccount">+ New account</button>
         <button class="primary" id="btnNewTxn">Make new transaction</button>
       </div>
@@ -315,14 +354,20 @@ const DEFAULT_ACCOUNT="General";
 const TXN_KINDS={init:"Initial balance",donation:"Donation",deposit:"Deposit",withdrawal:"Withdrawal",transfer:"Transfer"};
 const STORAGE_KEY="donation_ledger_autosave_v1";
 const META_KEY="donation_ledger_lastmeta_v1";
+const SNAP_KEY="donation_ledger_snapshots_v1";
+const MAX_SNAPS=12;
 const HAS_FSA=('showOpenFilePicker' in window)&&('showSaveFilePicker' in window);
 
 /* ================= STATE ================= */
-let state={rows:[],accounts:[],txns:[],fileName:"",version:0};
+function blankState(){return{rows:[],accounts:[{name:DEFAULT_ACCOUNT,created:today(),notes:""}],txns:[],
+  fileName:"new file",version:0,savedSig:null,savedAt:"",savedTo:""};}
+let state=blankState();
 let sortKey="date",sortDir=-1;
 let tSortKey="date",tSortDir=-1;
 let fileHandle=null;
 let curPage="donations";
+let storageTrouble=false;
+let undoStack=[];
 
 /* ================= tiny IndexedDB (file handle) ============ */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ledger_db",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -342,11 +387,11 @@ function parseCSV(text){
 function toCSV(arr){return arr.map(r=>r.map(c=>{const s=(c==null?"":String(c));return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(",")).join("\r\n");}
 function normalizeDate(s){s=(s||"").trim();if(!s)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);if(m){let[,mo,d,y]=m;if(y.length===2)y="20"+y;return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;}const t=new Date(s);if(!isNaN(t))return t.toISOString().slice(0,10);return s;}
 function parseAmount(s){const n=parseFloat(String(s).replace(/[^0-9.\-]/g,""));return isNaN(n)?0:n;}
-// comma-only split. No comma => keep verbatim (person or business, we don't guess).
 function splitName(s){s=(s||"").trim();const i=s.indexOf(",");if(i>-1)return[s.slice(0,i).trim(),s.slice(i+1).trim()];return[s,""];}
 function truthy(s){return /^(true|1|yes|y|org|x)$/i.test(String(s||"").trim());}
 function today(){return new Date().toISOString().slice(0,10);}
 function uid(){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function clone(o){return JSON.parse(JSON.stringify(o));}
 
 /* allocations are stored in one cell as  Account:12.50|Other Account:7.50  */
 function allocStr(allocs){return (allocs||[]).map(a=>`${a.account}:${(+a.amount||0).toFixed(2)}`).join("|");}
@@ -355,6 +400,67 @@ function parseAllocs(s){
     const i=p.lastIndexOf(":");if(i<0)return{account:p,amount:0};
     return{account:p.slice(0,i).trim(),amount:parseAmount(p.slice(i+1))};
   }).filter(a=>a.account);
+}
+
+/* ============ CONTENT FINGERPRINT (dirty tracking) ============ */
+function hash32(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return (h>>>0).toString(36);}
+function contentString(st){
+  const A=(st.accounts||[]).map(a=>[a.name,a.created||"",a.notes||""].join("\u0001")).join("\u0002");
+  const R=(st.rows||[]).map(r=>[r.last,r.first,r.org?1:0,r.date,(+r.amount).toFixed(2),r.type,r.notes||"",
+        allocStr(r.allocs&&r.allocs.length?r.allocs:[{account:DEFAULT_ACCOUNT,amount:r.amount}])].join("\u0001")).join("\u0002");
+  const T=(st.txns||[]).map(t=>[t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||""].join("\u0001")).join("\u0002");
+  return A+"\u0003"+R+"\u0003"+T;
+}
+function sig(st){return hash32(contentString(st||{}));}
+function isDirty(){return state.savedSig!==sig(state);}
+function hasContent(st){return !!st&&(((st.rows||[]).length>0)||((st.txns||[]).length>0)||((st.accounts||[]).length>1));}
+function summaryOf(st){return{d:(st.rows||[]).length,t:(st.txns||[]).length,a:(st.accounts||[]).length,latest:latestDateOf(st.rows||[])};}
+function summaryText(st){const s=summaryOf(st);return `${s.d} donation${s.d!==1?"s":""} · ${s.t} transaction${s.t!==1?"s":""} · ${s.a} account${s.a!==1?"s":""}`;}
+function relTime(iso){
+  if(!iso)return"";const ms=Date.now()-new Date(iso).getTime();
+  if(isNaN(ms))return"";
+  const m=Math.round(ms/60000);if(m<1)return"just now";if(m<60)return m+" min ago";
+  const h=Math.round(m/60);if(h<24)return h+" hour"+(h!==1?"s":"")+" ago";
+  const d=Math.round(h/24);return d+" day"+(d!==1?"s":"")+" ago";
+}
+
+/* ================= STORAGE (never silently loses) ================= */
+function readSnaps(){try{const s=localStorage.getItem(SNAP_KEY);const a=s?JSON.parse(s):[];return Array.isArray(a)?a:[];}catch(e){return[];}}
+function writeSnaps(snaps){
+  while(snaps.length){
+    try{localStorage.setItem(SNAP_KEY,JSON.stringify(snaps));return true;}catch(e){snaps.pop();}
+  }
+  try{localStorage.removeItem(SNAP_KEY);}catch(e){}
+  return false;
+}
+function lsSet(key,val){
+  try{localStorage.setItem(key,val);storageTrouble=false;return true;}catch(e){}
+  let snaps=readSnaps();
+  while(snaps.length){ // make room by discarding the oldest backups, never the live data
+    snaps.pop();writeSnaps(snaps);
+    try{localStorage.setItem(key,val);storageTrouble=false;return true;}catch(e){}
+    snaps=readSnaps();
+  }
+  storageTrouble=true;return false;
+}
+function persist(){const ok=lsSet(STORAGE_KEY,JSON.stringify(state));updateStatus();return ok;}
+function loadPersist(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
+function archiveState(st,reason){
+  if(!hasContent(st))return;
+  const s=sig(st),snaps=readSnaps();
+  if(snaps.length&&snaps[0].sig===s)return; // already have this exact content
+  snaps.unshift({id:uid(),ts:new Date().toISOString(),reason:reason||"",fileName:st.fileName||"",sig:s,sum:summaryOf(st),state:clone(st)});
+  while(snaps.length>MAX_SNAPS)snaps.pop();
+  writeSnaps(snaps);
+}
+function archiveStored(reason){const a=loadPersist();if(a)archiveState(a,reason);}
+
+/* ================= UNDO ================= */
+function pushUndo(label){undoStack.push({label,snap:JSON.stringify(state)});if(undoStack.length>25)undoStack.shift();}
+function undo(){
+  if(!undoStack.length){toast("Nothing to undo.");return;}
+  const u=undoStack.pop();
+  state=normalizeState(JSON.parse(u.snap));persist();renderAll();toast("Undone — "+u.label+".");
 }
 
 /* ================= ACCOUNTS ================= */
@@ -385,8 +491,6 @@ function ensureAccountsExist(){
 }
 
 /* ================= LEDGER ================= */
-/* Donations are not duplicated into state.txns — they are projected into the
-   ledger from state.rows, so deleting a donation removes its transaction too. */
 function ledger(){
   const out=[];
   state.rows.forEach((r,i)=>{
@@ -409,22 +513,14 @@ function accBalances(){
 }
 function balanceOf(name){const e=accBalances().get(canonAccount(name));return e?e.bal:0;}
 
-/* ================= META (staleness protection) ================= */
+/* ================= META ================= */
 function readMeta(){try{const s=localStorage.getItem(META_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
-function latestDateOf(rows){return rows.reduce((m,r)=>r.date>m?r.date:m,"");}
-function buildMetaLine(){return `# LEDGER_META saved=${new Date().toISOString()} version=${state.version} records=${state.rows.length} latestDate=${latestDateOf(state.rows)||"none"} accounts=${state.accounts.length} txns=${state.txns.length}`;}
+function latestDateOf(rows){return (rows||[]).reduce((m,r)=>r.date>m?r.date:m,"");}
+function buildMetaLine(st){st=st||state;return `# LEDGER_META saved=${new Date().toISOString()} version=${st.version||0} records=${(st.rows||[]).length} latestDate=${latestDateOf(st.rows)||"none"} accounts=${(st.accounts||[]).length} txns=${(st.txns||[]).length}`;}
 function parseMetaLine(line){if(!line||!line.startsWith("#"))return null;const get=k=>{const m=line.match(new RegExp(k+"=([^\\s]+)"));return m?m[1]:null;};return{version:parseInt(get("version"))||0,records:parseInt(get("records"))||0,latestDate:get("latestDate")||"",saved:get("saved")||"",txns:parseInt(get("txns"))||0};}
+function commitMeta(){lsSet(META_KEY,JSON.stringify({version:state.version,records:state.rows.length,latestDate:latestDateOf(state.rows),saved:new Date().toISOString(),fileName:state.fileName}));}
 
-/* ================= IMPORT ================= */
-function importText(text,name,handle){
-  let metaLine=null;
-  if(text.startsWith("#")&&!text.startsWith("#!")){const nl=text.indexOf("\n");metaLine=text.slice(0,nl);text=text.slice(nl+1);}
-  const incoming=parseMetaLine(metaLine);
-  const baseline=readMeta();
-  const suspicious=baseline&&incoming&&(incoming.version<baseline.version||incoming.records<baseline.records||(incoming.latestDate&&baseline.latestDate&&incoming.latestDate<baseline.latestDate));
-  const proceed=()=>doImport(text,name,handle,incoming);
-  if(suspicious)warnStale(baseline,incoming,name,proceed);else proceed();
-}
+/* ================= PARSING A FILE INTO A STATE ================= */
 function splitSections(grid){
   const sec={_LEGACY:[]};let cur=null;
   for(const r of grid){
@@ -450,10 +546,8 @@ function parseDonationGrid(grid){
     let last="",first="";
     if(iLast>-1){last=(r[iLast]||"").trim();first=(iFirst>-1?(r[iFirst]||"").trim():"");}
     else if(iName>-1){ if(org){last=(r[iName]||"").trim();first="";} else {[last,first]=splitName(r[iName]);} }
-    else{ // headerless positional: Last, First, Date, Amount, Type, Notes
-      last=(r[0]||"").trim();first=(r[1]||"").trim();
-      if(!first&&last.includes(","))[last,first]=splitName(last);
-    }
+    else{ last=(r[0]||"").trim();first=(r[1]||"").trim();
+      if(!first&&last.includes(","))[last,first]=splitName(last); }
     const date=normalizeDate(iDate>-1?r[iDate]:(hasHeader?"":r[2]));
     const amount=parseAmount(iAmt>-1?r[iAmt]:(hasHeader?0:r[3]));
     let type=(iType>-1?r[iType]:(hasHeader?"":r[4])||"").trim();
@@ -489,36 +583,76 @@ function parseTxnGrid(grid){
   }
   return out;
 }
-function doImport(text,name,handle,incoming){
+function buildStateFromText(text){
+  let metaLine=null;
+  if(text.startsWith("#")&&!text.startsWith("#!")){const nl=text.indexOf("\n");metaLine=text.slice(0,nl);text=text.slice(nl+1);}
+  const meta=parseMetaLine(metaLine);
   const grid=parseCSV(text);
-  if(!grid.length){toast("File looks empty.");return;}
   const sec=splitSections(grid);
   const sectioned=Object.keys(sec).some(k=>k!=="_LEGACY");
-  state.rows=parseDonationGrid(sectioned?(sec.DONATIONS||[]):sec._LEGACY);
-  state.accounts=sectioned?parseAccountGrid(sec.ACCOUNTS||[]):[];
-  state.txns=sectioned?parseTxnGrid(sec.TRANSACTIONS||[]):[];
-  ensureAccountsExist();
-  state.fileName=name||"imported.csv";
-  state.version=incoming?incoming.version:(readMeta()?.version||0);
+  const st={
+    rows:parseDonationGrid(sectioned?(sec.DONATIONS||[]):sec._LEGACY),
+    accounts:sectioned?parseAccountGrid(sec.ACCOUNTS||[]):[],
+    txns:sectioned?parseTxnGrid(sec.TRANSACTIONS||[]):[],
+    fileName:"",version:meta?meta.version:0,
+    savedSig:null,savedAt:meta&&meta.saved?meta.saved:"",savedTo:""
+  };
+  return{st,meta};
+}
+
+/* ================= ADOPTING / REPLACING WORK ================= */
+/* Every path that replaces the working copy goes through here, and every one
+   of them archives what was there first. Nothing is destroyed, only shelved. */
+function adoptState(st,handle,reason){
+  archiveStored(reason||"replaced");
+  state=normalizeState(st);
   fileHandle=handle||null;
   openApp();
-  toast(`Loaded ${state.rows.length} donations, ${state.txns.length} transactions, ${state.accounts.length} accounts.`);
 }
-function warnStale(baseline,incoming,name,onProceed){
-  const fmtRow=(a,b)=>`<tr><td>${a}</td><td><b>${b}</b></td></tr>`;
+function normalizeState(s){
+  s.rows=s.rows||[];s.accounts=s.accounts||[];s.txns=s.txns||[];
+  s.rows.forEach(r=>{if(!r.allocs||!r.allocs.length)r.allocs=[{account:DEFAULT_ACCOUNT,amount:r.amount}];});
+  s.txns.forEach(t=>{t.allocs=t.allocs||[];if(!t.id)t.id=uid();});
+  if(s.savedSig===undefined)s.savedSig=null;
+  s.savedAt=s.savedAt||"";s.savedTo=s.savedTo||"";
+  s.version=s.version||0;
+  return s;
+}
+function importText(text,name,handle){
+  let built;
+  try{built=buildStateFromText(text);}catch(e){toast("Could not read that file.");return;}
+  const st=built.st;
+  if(!st.rows.length&&!st.txns.length&&!st.accounts.length){toast("That file looks empty — nothing was changed.");return;}
+  st.fileName=name||"imported.csv";st.savedTo=st.fileName;
+  const auto=loadPersist();
+  const risky=hasContent(auto)&&looksSmaller(st,auto);
+  const go=()=>adoptState(st,handle,"replaced by opening "+st.fileName);
+  if(risky)warnStale(auto,st,st.fileName,go);else go();
+}
+function looksSmaller(inc,cur){
+  const a=summaryOf(inc),b=summaryOf(cur);
+  return a.d<b.d||a.t<b.t||(a.latest&&b.latest&&a.latest<b.latest)||((inc.version||0)<(cur.version||0));
+}
+function warnStale(current,incoming,name,onProceed){
+  const row=(l,a,b)=>`<tr><td>${l}</td><td><b>${a}</b></td><td><b>${b}</b></td></tr>`;
+  const c=summaryOf(current),i=summaryOf(incoming);
   const ov=modal(`
-    <div class="mhead" style="color:var(--warn)">⚠️ This file may be out of date</div>
+    <div class="mhead" style="color:var(--warn)">⚠️ That file has less in it than your current work</div>
     <div class="mbody">
-      <p>“${esc(name)}” looks older than the last file this app saved. Opening it and adding donations could drop entries you saved more recently.</p>
+      <p>“${esc(name)}” looks older than what this browser is holding. Opening it will replace what you see on screen.</p>
       <div class="warnbox"><table>
-        ${fmtRow("This file — records", incoming?incoming.records:"unknown")}
-        ${fmtRow("Last saved here — records", baseline.records)}
-        ${fmtRow("This file — latest donation", incoming&&incoming.latestDate?incoming.latestDate:"unknown")}
-        ${fmtRow("Last saved here — latest donation", baseline.latestDate||"unknown")}
+        <tr><td></td><td style="font-size:12px;color:var(--muted)">In this browser</td><td style="font-size:12px;color:var(--muted)">In that file</td></tr>
+        ${row("Donations",c.d,i.d)}
+        ${row("Transactions",c.t,i.t)}
+        ${row("Latest donation",c.latest||"—",i.latest||"—")}
       </table></div>
+      <div class="safebox">Your current work will be kept as a backup either way — you can get it back from the Backups list.</div>
     </div>
-    <div class="mfoot"><button data-close>Cancel</button><button class="primary" id="wProceed" style="background:var(--warn);border-color:var(--warn)">Open anyway</button></div>`,"confirm");
-  el("wProceed").onclick=()=>{onProceed();close(ov);};
+    <div class="mfoot"><button data-close>Cancel</button>
+      <button id="wDl">Download current work first</button>
+      <button class="primary" id="wProceed" style="background:var(--warn);border-color:var(--warn)">Open it anyway</button></div>`,"confirm");
+  el("wDl").onclick=()=>downloadText(serializeAll(true,current),stampName("donations_backup"));
+  el("wProceed").onclick=()=>{close(ov);onProceed();};
 }
 
 /* ================= DERIVED (donors) ================= */
@@ -577,7 +711,15 @@ function applyTFilter(){
 
 /* ================= RENDER ================= */
 const fmt=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"});
-function renderAll(){renderDonations();renderAccounts();renderTxns();}
+function renderAll(){renderDonations();renderAccounts();renderTxns();updateStatus();}
+
+function updateStatus(){
+  const pill=el("savePill");if(!pill)return;
+  if(storageTrouble){pill.className="pill bad";pill.textContent="⚠ Browser storage full — autosave off. Save to a file now.";return;}
+  if(!state.savedAt){pill.className="pill warn";pill.textContent="● Not saved to a file yet";return;}
+  if(isDirty()){pill.className="pill warn";pill.textContent=`● Unsaved changes — last saved ${relTime(state.savedAt)}`;return;}
+  pill.className="pill ok";pill.textContent=`✓ Saved to ${state.savedTo||state.fileName} · ${relTime(state.savedAt)}`;
+}
 
 function renderDonations(){
   const rows=applyFilter();
@@ -616,7 +758,12 @@ function renderDonations(){
     box.classList.remove("hidden");
   } else box.classList.add("hidden");
 
-  tb.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{state.rows.splice(parseInt(b.dataset.i),1);persist();renderAll();});
+  tb.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{
+    const i=parseInt(b.dataset.i);const r=state.rows[i];if(!r)return;
+    pushUndo("deleted a donation from "+displayName(r));
+    state.rows.splice(i,1);persist();renderAll();
+    toast("Donation deleted.","Undo",undo);
+  });
   document.querySelectorAll("th[data-sort] .arw").forEach(a=>a.textContent="");
   const th=document.querySelector(`th[data-sort="${sortKey}"] .arw`);if(th)th.textContent=sortDir<0?"▼":"▲";
   syncAccountSelect("fDAcct");
@@ -681,7 +828,10 @@ function renderTxns(){
   el("tNet").textContent=fmt.format(inn-out);
   el("tCount").textContent=rows.length;
   tb.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{
-    state.txns=state.txns.filter(x=>x.id!==b.dataset.id);persist();renderAll();toast("Transaction deleted.");
+    const t=state.txns.find(x=>x.id===b.dataset.id);if(!t)return;
+    pushUndo("deleted a "+(TXN_KINDS[t.kind]||"transaction").toLowerCase());
+    state.txns=state.txns.filter(x=>x.id!==b.dataset.id);persist();renderAll();
+    toast("Transaction deleted.","Undo",undo);
   });
   document.querySelectorAll("th[data-tsort] .arw").forEach(a=>a.textContent="");
   const th=document.querySelector(`th[data-tsort="${tSortKey}"] .arw`);if(th)th.textContent=tSortDir<0?"▼":"▲";
@@ -785,28 +935,26 @@ function openDonationModal(){
   orgBox.addEventListener("change",refreshDonor);
 
   addAllocRow(wrap,DEFAULT_ACCOUNT,"");
-  function updSum(){
+  function showSum(){
+    const total=parseFloat(el("dAmt").value)||0;
+    const sum=allocTotal(wrap),rem=total-sum,s=el("dAllocSum");
+    if(total<=0){s.textContent="";s.className="allocsum";return;}
+    if(Math.abs(rem)<0.005){s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} ✓`;s.className="allocsum ok";}
+    else{s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} — ${rem>0?fmt.format(rem)+" left":fmt.format(-rem)+" over"}`;s.className="allocsum bad";}
+  }
+  function mirrorSingle(){
     const total=parseFloat(el("dAmt").value)||0;
     const rows=wrap.querySelectorAll(".allocrow");
-    if(rows.length===1){const a=rows[0].querySelector(".allocAmt");if(total>0)a.value=total.toFixed(2);else a.value="";}
-    const sum=allocTotal(wrap),rem=total-sum,s=el("dAllocSum");
-    if(total<=0){s.textContent="";s.className="allocsum";return;}
-    if(Math.abs(rem)<0.005){s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} ✓`;s.className="allocsum ok";}
-    else s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} — ${rem>0?fmt.format(rem)+" left":fmt.format(-rem)+" over"}`,s.className="allocsum bad";
+    if(rows.length===1){const a=rows[0].querySelector(".allocAmt");a.value=total>0?total.toFixed(2):"";}
+    showSum();
   }
-  wrap.addEventListener("allocchange",()=>{
-    const total=parseFloat(el("dAmt").value)||0;
-    const sum=allocTotal(wrap),rem=total-sum,s=el("dAllocSum");
-    if(total<=0){s.textContent="";s.className="allocsum";return;}
-    if(Math.abs(rem)<0.005){s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} ✓`;s.className="allocsum ok";}
-    else s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} — ${rem>0?fmt.format(rem)+" left":fmt.format(-rem)+" over"}`,s.className="allocsum bad";
-  });
-  el("dAmt").addEventListener("input",updSum);
+  wrap.addEventListener("allocchange",showSum);
+  el("dAmt").addEventListener("input",mirrorSingle);
   el("dAddAlloc").onclick=()=>{
     const total=parseFloat(el("dAmt").value)||0;
     const rem=total-allocTotal(wrap);
     addAllocRow(wrap,"",rem>0.005?rem.toFixed(2):"");
-    wrap.dispatchEvent(new Event("allocchange"));
+    showSum();
     wrap.lastElementChild.querySelector(".allocAcc").focus();
   };
 
@@ -818,7 +966,6 @@ function openDonationModal(){
     const bad=validateAllocs(allocs,amount);
     if(bad){el("dErr").textContent=bad;return;}
     el("dErr").textContent="";
-    // If the typed name matches an existing donor, inherit its person/business setting.
     const existing=donors.find(d=>displayName(d).toLowerCase()===raw.toLowerCase());
     const isOrg=orgBox.checked||(existing&&existing.org);
     let last,first;
@@ -833,17 +980,21 @@ function openDonationModal(){
     });
   };
   setTimeout(()=>inp.focus(),50);
-  updSum();
+  mirrorSingle();
 }
-function commitDonation(rec,ov){state.rows.push(rec);persist();renderAll();close(ov);toast("Donation added and directed to "+rec.allocs.length+" account"+(rec.allocs.length!==1?"s":"")+".");}
+function commitDonation(rec,ov){
+  pushUndo("added a donation");
+  state.rows.push(rec);persist();renderAll();close(ov);
+  toast("Donation added, directed to "+rec.allocs.length+" account"+(rec.allocs.length!==1?"s":"")+".");
+}
 function confirmNewDonor(name,isOrg,onYes){const word=isOrg?"organization":"donor";const ov=modal(`<div class="mhead">Add new ${word}?</div><div class="mbody"><p>“${esc(name)}” isn’t in your records yet. Add ${isOrg?"it":"them"} as a new ${word}?</p></div><div class="mfoot"><button data-close>No</button><button class="primary" id="cYes">Yes, add</button></div>`,"confirm");el("cYes").onclick=()=>{close(ov);onYes();};}
 
-/* ============ NEW ACCOUNT (prompted or explicit) ============ */
+/* ============ NEW ACCOUNT ============ */
 function openAccountModal(prefillName,onDone){
   const ov=modal(`
     <div class="mhead">${prefillName?"Create new account?":"New account"}</div>
     <div class="mbody">
-      ${prefillName?`<p style="margin:0">“${esc(prefillName)}” isn’t one of your accounts yet. Create it?</p>`:""}
+      ${prefillName?`<p>“${esc(prefillName)}” isn’t one of your accounts yet. Create it?</p>`:""}
       <div><label>Account name</label><input type="text" id="aName" placeholder="e.g. Building Fund" value="${esc(prefillName||"")}"></div>
       <div class="two">
         <div><label>Starting balance ($)</label><input type="number" id="aInit" step="0.01" placeholder="0.00"></div>
@@ -859,13 +1010,13 @@ function openAccountModal(prefillName,onDone){
     const bad=badAccountName(name);
     if(bad){el("aErr").textContent=bad;return;}
     const init=parseFloat(el("aInit").value);
+    pushUndo("created account “"+name+"”");
     createAccount(name,isNaN(init)?0:init,el("aDate").value||today(),el("aNotes").value.trim());
     persist();renderAll();close(ov);toast(`Account “${name}” created.`);
     if(onDone)onDone(name);
   };
   setTimeout(()=>el(prefillName?"aInit":"aName").focus(),50);
 }
-/* Walks through every unknown account name one at a time; cancelling aborts. */
 function ensureAccountsThen(names,cb){
   const missing=[];
   for(const n of names){const t=String(n||"").trim();if(t&&!findAccount(t)&&!missing.some(m=>m.toLowerCase()===t.toLowerCase()))missing.push(t);}
@@ -877,12 +1028,13 @@ function ensureAccountsThen(names,cb){
 function deleteAccount(name){
   const used=ledger().filter(t=>t.kind!=="init"&&(t.from===name||(t.allocs||[]).some(a=>a.account===name)));
   if(used.length){toast(`“${name}” is used by ${used.length} transaction${used.length!==1?"s":""} — remove those first.`);return;}
-  const ov=modal(`<div class="mhead">Delete account?</div><div class="mbody"><p>Remove “${esc(name)}” and its opening balance entry? This can’t be undone.</p></div>
-    <div class="mfoot"><button data-close>Cancel</button><button class="primary" id="delYes" style="background:var(--danger);border-color:var(--danger)">Delete</button></div>`,"confirm");
+  const ov=modal(`<div class="mhead">Delete account?</div><div class="mbody"><p>Remove “${esc(name)}” and its opening balance entry?</p><div class="safebox">You can undo this straight after, and a backup of your work is kept either way.</div></div>
+    <div class="mfoot"><button data-close>Cancel</button><button class="danger" id="delYes">Delete</button></div>`,"confirm");
   el("delYes").onclick=()=>{
+    pushUndo("deleted account “"+name+"”");
     state.accounts=state.accounts.filter(a=>a.name!==name);
     state.txns=state.txns.filter(t=>!(t.kind==="init"&&(t.allocs||[]).some(a=>a.account===name)));
-    persist();renderAll();close(ov);toast("Account deleted.");
+    persist();renderAll();close(ov);toast("Account deleted.","Undo",undo);
   };
 }
 
@@ -957,7 +1109,7 @@ function openTxnModal(){
     ensureAccountsThen(names,()=>{
       const rec={id:uid(),date,kind,from:kind==="deposit"?"":canonAccount(from),
                  allocs:allocs.map(a=>({account:canonAccount(a.account),amount:a.amount})),amount,ref,notes};
-      const commit=()=>{state.txns.push(rec);persist();renderAll();close(ov);toast(TXN_KINDS[kind]+" recorded.");};
+      const commit=()=>{pushUndo("added a "+TXN_KINDS[kind].toLowerCase());state.txns.push(rec);persist();renderAll();close(ov);toast(TXN_KINDS[kind]+" recorded.");};
       if(rec.from){
         const after=balanceOf(rec.from)-amount;
         if(after<-0.005){confirmOverdraft(rec.from,after,commit);return;}
@@ -978,20 +1130,21 @@ function confirmOverdraft(acct,after,onYes){
 function modal(inner,extra=""){const ov=document.createElement("div");ov.className="overlay";ov.innerHTML=`<div class="modal ${extra}">${inner}</div>`;document.body.appendChild(ov);ov.addEventListener("mousedown",e=>{if(e.target===ov)close(ov);});ov.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>close(ov));return ov;}
 function close(ov){ov.remove();}
 
-/* ================= SAVE / EXPORT ================= */
-function serializeAll(includeMeta){
+/* ================= SERIALIZE / SAVE ================= */
+function serializeAll(includeMeta,st){
+  st=st||state;
   const g=[];
   g.push(["#!ACCOUNTS"]);
   g.push(["Name","Created","Notes"]);
-  state.accounts.forEach(a=>g.push([a.name,a.created||"",a.notes||""]));
+  (st.accounts||[]).forEach(a=>g.push([a.name,a.created||"",a.notes||""]));
   g.push(["#!DONATIONS"]);
   g.push(["LastName","FirstName","Org","Date","Amount","Type","Notes","Accounts"]);
-  state.rows.forEach(r=>g.push([r.last,r.first,r.org?"TRUE":"",r.date,(+r.amount).toFixed(2),r.type,r.notes,allocStr(r.allocs)]));
+  (st.rows||[]).forEach(r=>g.push([r.last,r.first,r.org?"TRUE":"",r.date,(+r.amount).toFixed(2),r.type,r.notes,allocStr(r.allocs)]));
   g.push(["#!TRANSACTIONS"]);
   g.push(["Id","Date","Kind","From","To","Amount","Ref","Notes"]);
-  state.txns.forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||""]));
+  (st.txns||[]).forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||""]));
   const body=toCSV(g);
-  return includeMeta?buildMetaLine()+"\r\n"+body:body;
+  return includeMeta?buildMetaLine(st)+"\r\n"+body:body;
 }
 function donationsOnlyCSV(rows){
   const g=[["LastName","FirstName","Org","Date","Amount","Type","Notes","Accounts"]];
@@ -1009,30 +1162,199 @@ function txnsCSV(rows){
 function stampName(prefix){const s=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");return `${prefix}_${s}.csv`;}
 function downloadText(text,filename){const blob=new Blob([text],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);}
 async function writeToHandle(handle,text){const w=await handle.createWritable();await w.write(text);await w.close();}
-function commitMeta(){localStorage.setItem(META_KEY,JSON.stringify({version:state.version,records:state.rows.length,latestDate:latestDateOf(state.rows),saved:new Date().toISOString(),fileName:state.fileName}));}
+function markSaved(name){
+  state.savedSig=sig(state);state.savedAt=new Date().toISOString();state.savedTo=name;
+  el("fileLabel").textContent=state.fileName||name;
+  commitMeta();persist();archiveState(state,"after saving to "+name);updateStatus();
+}
 async function saveFlow(){
-  state.version=(state.version||0)+1;
+  const prev=state.version||0;
+  state.version=prev+1;
   const text=serializeAll(true);
   try{
     if(HAS_FSA){
-      if(!fileHandle){fileHandle=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});await idbSet("fileHandle",fileHandle);}
+      if(!fileHandle){
+        fileHandle=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
+        await idbSet("fileHandle",fileHandle);
+      }
       await writeToHandle(fileHandle,text);
-      state.fileName=fileHandle.name;el("fileLabel").textContent=fileHandle.name;
-      commitMeta();persist();toast("Saved to "+fileHandle.name);
-    } else { downloadText(text,stampName("donations"));commitMeta();persist();toast("Saved a new CSV to your downloads."); }
-  }catch(e){ if(e.name!=="AbortError"){downloadText(text,stampName("donations"));commitMeta();persist();toast("Saved via download.");} else state.version--; }
+      state.fileName=fileHandle.name;
+      markSaved(fileHandle.name);
+      toast("Saved to "+fileHandle.name);
+    } else {
+      const fn=stampName("donations");downloadText(text,fn);markSaved(fn);toast("Saved a new CSV to your downloads.");
+    }
+  }catch(e){
+    if(e.name!=="AbortError"){const fn=stampName("donations");downloadText(text,fn);markSaved(fn);toast("Couldn’t write to the file — saved via download instead.");}
+    else{state.version=prev;persist();}
+  }
+}
+async function saveCopy(){ // never touches the linked file
+  const text=serializeAll(true);
+  if(HAS_FSA){
+    try{const h=await window.showSaveFilePicker({suggestedName:stampName("donations_backup"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
+      await writeToHandle(h,text);toast("Backup copy written to "+h.name);return;}
+    catch(e){if(e.name==="AbortError")return;}
+  }
+  downloadText(text,stampName("donations_backup"));toast("Backup copy downloaded.");
 }
 function exportFiltered(){downloadText(donationsOnlyCSV(applyFilter()),stampName("donations_filtered"));toast("Exported filtered donations.");}
 function exportTxns(){downloadText(txnsCSV(applyTFilter()),stampName("transactions_filtered"));toast("Exported filtered transactions.");}
 
-/* ================= PERSISTENCE ================= */
-function persist(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){}}
-function loadPersist(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
-function normalizeState(s){
-  s.rows=s.rows||[];s.accounts=s.accounts||[];s.txns=s.txns||[];
-  s.rows.forEach(r=>{if(!r.allocs||!r.allocs.length)r.allocs=[{account:DEFAULT_ACCOUNT,amount:r.amount}];});
-  s.txns.forEach(t=>{t.allocs=t.allocs||[];if(!t.id)t.id=uid();});
-  return s;
+/* ================= BACKUPS ================= */
+function openSnapshots(){
+  const snaps=readSnaps();
+  const rows=snaps.map(s=>`<div class="snap">
+      <div><div class="sn1">${esc(new Date(s.ts).toLocaleString())}</div>
+        <div class="sn2">${s.sum.d} donations · ${s.sum.t} transactions · ${s.sum.a} accounts${s.fileName?" · "+esc(s.fileName):""}<br>${esc(s.reason||"")}</div></div>
+      <div class="snb"><button data-dl="${s.id}">Download</button><button class="primary" data-rs="${s.id}">Restore</button></div>
+    </div>`).join("")||`<div class="empty">No backups yet.</div>`;
+  const ov=modal(`<div class="mhead">Backups kept in this browser</div>
+    <div class="mbody">
+      <div class="hint">A copy is filed automatically before anything replaces your work, and after every save. These live in this browser only — download one to keep it somewhere safe.</div>
+      <div class="snaplist">${rows}</div>
+    </div>
+    <div class="mfoot"><button id="snapCopy">Download a copy of current work</button><button data-close>Close</button></div>`,"wide");
+  el("snapCopy").onclick=()=>{const cur=loadPersist()||state;downloadText(serializeAll(true,cur),stampName("donations_backup"));toast("Copy downloaded.");};
+  ov.querySelectorAll("[data-dl]").forEach(b=>b.onclick=()=>{
+    const s=readSnaps().find(x=>x.id===b.getAttribute("data-dl"));if(!s)return;
+    downloadText(serializeAll(true,s.state),stampName("donations_backup"));toast("Backup downloaded.");
+  });
+  ov.querySelectorAll("[data-rs]").forEach(b=>b.onclick=()=>{
+    const s=readSnaps().find(x=>x.id===b.getAttribute("data-rs"));if(!s)return;
+    close(ov);confirmRestoreSnap(s);
+  });
+}
+function confirmRestoreSnap(s){
+  const cur=loadPersist();
+  const ov=modal(`<div class="mhead">Restore this backup?</div>
+    <div class="mbody">
+      <p>Load the copy from <b>${esc(new Date(s.ts).toLocaleString())}</b> — ${s.sum.d} donations, ${s.sum.t} transactions.</p>
+      ${hasContent(cur)?`<div class="safebox">What’s on screen now (${esc(summaryText(cur))}) will be filed as a backup first, so this is reversible.</div>`:""}
+    </div>
+    <div class="mfoot"><button data-close>Cancel</button><button class="primary" id="rsYes">Restore it</button></div>`,"confirm");
+  el("rsYes").onclick=async()=>{
+    close(ov);
+    let h=null;
+    try{const hh=await idbGet("fileHandle");if(hh&&s.state.fileName&&hh.name===s.state.fileName)h=hh;}catch(e){}
+    adoptState(clone(s.state),h,"replaced by restoring a backup");
+    toast("Backup restored.");
+  };
+}
+
+/* ================= START SCREEN ================= */
+let bootHandle=null;
+async function bootStart(){
+  const auto=loadPersist();
+  try{bootHandle=await idbGet("fileHandle");}catch(e){bootHandle=null;}
+  const snaps=readSnaps();
+  el("snapCount").textContent=snaps.length?`(${snaps.length})`:"";
+  const canContinue=hasContent(auto)||!!bootHandle;
+  el("continueBox").classList.toggle("hidden",!canContinue);
+  let note="";
+  if(canContinue){
+    let parts=[];
+    if(hasContent(auto)){
+      parts.push(summaryText(auto));
+      const dirty=auto.savedSig!==sig(auto);
+      if(dirty)parts.push(auto.savedAt?`changes not yet saved (last save ${relTime(auto.savedAt)})`:"never saved to a file");
+      else parts.push(`saved to ${auto.savedTo||auto.fileName||"a file"} ${relTime(auto.savedAt)}`);
+      note=dirty?"Your latest work is held in this browser. Open it and press Save to write it back to your file."
+                :"Everything is saved to your file — this reopens it.";
+    } else if(bootHandle){
+      parts.push(bootHandle.name);
+      note="Reopens the file you last saved to.";
+    }
+    el("continueSub").textContent=(bootHandle?bootHandle.name+" — ":"")+parts.join(" · ");
+  }
+  el("startNote").textContent=note;
+}
+async function continueWork(){
+  const auto=loadPersist();
+  let h=bootHandle,fileSt=null;
+  if(h){
+    try{
+      let p=await h.queryPermission({mode:"readwrite"});
+      if(p!=="granted")p=await h.requestPermission({mode:"readwrite"});
+      if(p==="granted"){
+        const f=await h.getFile();
+        const built=buildStateFromText(await f.text());
+        fileSt=built.st;fileSt.fileName=h.name;fileSt.savedTo=h.name;
+      } else h=null;
+    }catch(e){h=null;}
+  }
+  const autoOk=hasContent(auto);
+  if(autoOk&&fileSt){
+    const verdict=compareStates(auto,fileSt);
+    if(verdict==="conflict"){chooseVersion(auto,fileSt,h);return;}
+    if(verdict==="file"){adoptState(fileSt,h,"replaced by reopening "+h.name);toast("Opened "+h.name+".");return;}
+    adoptState(auto,attachable(auto,h),"restored session");
+    toast(verdict==="same"?"Opened "+(auto.savedTo||auto.fileName||"your ledger")+".":"Restored your unsaved work.");
+    return;
+  }
+  if(autoOk){adoptState(auto,attachable(auto,h),"restored session");toast("Restored your work.");return;}
+  if(fileSt){adoptState(fileSt,h,"opened "+h.name);toast("Opened "+h.name+".");return;}
+  newFileFlow();
+}
+function attachable(st,h){ // only relink a file we know this data came from
+  return (h&&st.fileName&&h.name===st.fileName)?h:null;
+}
+function compareStates(a,b){
+  if(sig(a)===sig(b))return "same";
+  const A=summaryOf(a),B=summaryOf(b);
+  const ge=(x,y)=>x.d>=y.d&&x.t>=y.t&&x.a>=y.a&&(!y.latest||(x.latest||"")>=y.latest);
+  const gt=(x,y)=>x.d>y.d||x.t>y.t||x.a>y.a||((x.latest||"")>(y.latest||""));
+  if(ge(A,B)&&gt(A,B))return "auto";
+  if(ge(B,A)&&gt(B,A))return "file";
+  return "conflict";
+}
+function chooseVersion(auto,fileSt,h){
+  const ov=modal(`<div class="mhead">Two versions found — which one?</div>
+    <div class="mbody">
+      <p>The copy in this browser and the copy in your file aren’t the same. Nothing will be discarded — the one you don’t pick is filed as a backup.</p>
+      <div class="choose">
+        <div class="choice">
+          <h4>In this browser</h4>
+          <div class="c2">${esc(summaryText(auto))}${auto.savedAt?" · last saved "+relTime(auto.savedAt):" · never saved"}</div>
+          <button class="primary" id="pickAuto">Use this one</button>
+          <button id="dlAuto">Download it</button>
+        </div>
+        <div class="choice">
+          <h4>In the file${h?" — "+esc(h.name):""}</h4>
+          <div class="c2">${esc(summaryText(fileSt))}</div>
+          <button class="primary" id="pickFile">Use this one</button>
+          <button id="dlFile">Download it</button>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot"><button data-close>Cancel</button></div>`,"wide");
+  el("dlAuto").onclick=()=>downloadText(serializeAll(true,auto),stampName("donations_browsercopy"));
+  el("dlFile").onclick=()=>downloadText(serializeAll(true,fileSt),stampName("donations_filecopy"));
+  el("pickAuto").onclick=()=>{archiveState(fileSt,"the file version, not chosen");close(ov);adoptState(auto,attachable(auto,h),"restored session");};
+  el("pickFile").onclick=()=>{close(ov);adoptState(fileSt,h,"replaced by the file version");};
+}
+
+/* ================= START A BLANK FILE (guarded) ================= */
+function newFileFlow(){
+  const auto=loadPersist();
+  const go=()=>{
+    archiveStored("before starting a blank file");
+    state=blankState();state.version=readMeta()?.version||0;state.savedSig=null;
+    fileHandle=null;curPage="donations";openApp();
+  };
+  if(!hasContent(auto)){go();return;}
+  const dirty=auto.savedSig!==sig(auto);
+  const ov=modal(`<div class="mhead">Start a blank file?</div>
+    <div class="mbody">
+      <p>This clears the screen so you can begin a separate ledger. Your current work is <b>${esc(summaryText(auto))}</b>.</p>
+      ${dirty?`<div class="warnbox">There are changes here that aren’t in any file yet${auto.savedAt?` — the last save was ${relTime(auto.savedAt)}`:""}.</div>`:""}
+      <div class="safebox">It will be filed under Backups in this browser, and you can bring it straight back. Downloading a copy is safer still.</div>
+    </div>
+    <div class="mfoot"><button data-close>Cancel</button>
+      <button id="nfDl">Download a copy first</button>
+      <button class="danger" id="nfGo">Yes, start blank</button></div>`,"confirm");
+  el("nfDl").onclick=()=>{downloadText(serializeAll(true,auto),stampName("donations_backup"));toast("Copy downloaded.");};
+  el("nfGo").onclick=()=>{close(ov);go();};
 }
 
 /* ================= FILE OPEN ================= */
@@ -1040,7 +1362,6 @@ async function openViaPicker(){
   if(HAS_FSA){try{const[h]=await window.showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});const f=await h.getFile();await idbSet("fileHandle",h);importText(await f.text(),h.name,h);}catch(e){if(e.name!=="AbortError")toast("Could not open file.");}}
   else el("fileInput").click();
 }
-async function resumeHandle(h){try{let p=await h.queryPermission({mode:"readwrite"});if(p!=="granted")p=await h.requestPermission({mode:"readwrite"});if(p!=="granted"){toast("Permission not granted.");return;}const f=await h.getFile();importText(await f.text(),h.name,h);}catch(e){toast("Could not reopen that file.");}}
 
 /* ================= APP LIFECYCLE ================= */
 function showPage(p){
@@ -1052,6 +1373,8 @@ function showPage(p){
 }
 function openApp(){
   normalizeState(state);ensureAccountsExist();
+  if(state.savedSig==null)state.savedSig=sig(state); // computed after normalising, so a freshly opened file reads as clean
+  undoStack=[];
   el("start").classList.add("hidden");el("app").classList.remove("hidden");
   el("fileLabel").textContent=state.fileName||"new file";
   el("fType").innerHTML=`<option value="">All types</option>`+DONATION_TYPES.map(t=>`<option>${t}</option>`).join("");
@@ -1060,11 +1383,21 @@ function openApp(){
 }
 function el(id){return document.getElementById(id);}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-let toastT;function toast(m){const t=el("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2600);}
+let toastT;
+function toast(m,actionLabel,actionFn){
+  const t=el("toast");t.innerHTML="";
+  const s=document.createElement("span");s.textContent=m;t.appendChild(s);
+  if(actionLabel){const b=document.createElement("button");b.className="tact";b.textContent=actionLabel;b.onclick=()=>{t.classList.remove("show");actionFn();};t.appendChild(b);}
+  t.classList.add("show");clearTimeout(toastT);
+  toastT=setTimeout(()=>t.classList.remove("show"),actionLabel?8000:2600);
+}
 
 /* ================= WIRING ================= */
-el("btnNewFile").onclick=()=>{state={rows:[],accounts:[{name:DEFAULT_ACCOUNT,created:today(),notes:""}],txns:[],fileName:"new file",version:readMeta()?.version||0};fileHandle=null;curPage="donations";openApp();};
+el("btnContinue").onclick=continueWork;
+el("btnNewFile").onclick=newFileFlow;
 el("btnBrowse").onclick=openViaPicker;
+el("btnBackups").onclick=openSnapshots;
+el("btnBackups2").onclick=openSnapshots;
 el("dropzone").onclick=openViaPicker;
 el("fileInput").onchange=e=>{const f=e.target.files[0];if(f){const r=new FileReader();r.onload=()=>importText(r.result,f.name,null);r.readAsText(f);}};
 
@@ -1079,20 +1412,13 @@ async function handleDrop(e){
   const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=()=>importText(r.result,f.name,null);r.readAsText(f);}
 }
 
-(async function(){
-  const s=loadPersist();
-  if(s&&((s.rows&&s.rows.length)||(s.txns&&s.txns.length))){el("resumeLocal").classList.remove("hidden");el("btnRestore").onclick=()=>{state=normalizeState(s);openApp();};}
-  if(HAS_FSA){try{const h=await idbGet("fileHandle");if(h){el("resumeHandle").classList.remove("hidden");const a=el("btnResumeHandle");a.textContent=h.name;a.onclick=()=>resumeHandle(h);}}catch(e){}}
-})();
-
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showPage(t.dataset.page));
 el("btnNewDonation").onclick=openDonationModal;
 el("btnNewTxn").onclick=openTxnModal;
 el("btnNewAccount").onclick=()=>openAccountModal(null,null);
 el("btnSave").onclick=saveFlow;
 el("btnExport").onclick=exportFiltered;
 el("btnExportT").onclick=exportTxns;
-el("btnClose").onclick=()=>{persist();el("app").classList.add("hidden");el("start").classList.remove("hidden");};
+el("btnClose").onclick=()=>{persist();el("app").classList.add("hidden");el("start").classList.remove("hidden");bootStart();};
 
 ["fRange","fType","fDAcct","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{const ev=(id==="fName"||id==="fMin"||id==="fMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fRange").value==="custom";el("customFrom").classList.toggle("hidden",!custom);el("customTo").classList.toggle("hidden",!custom);renderDonations();});});
 el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value="");el("fRange").value="all";el("fType").value="";el("fDAcct").value="";el("customFrom").classList.add("hidden");el("customTo").classList.add("hidden");renderDonations();};
@@ -1104,10 +1430,23 @@ el("donorToggle").onclick=()=>{const l=el("donorList"),c=el("donorCaret");const 
 document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==="date")?-1:1;}renderDonations();});
 document.querySelectorAll("th[data-tsort]").forEach(th=>th.onclick=()=>{const k=th.dataset.tsort;if(tSortKey===k)tSortDir*=-1;else{tSortKey=k;tSortDir=(k==="date")?-1:1;}renderTxns();});
 
+document.addEventListener("keydown",e=>{
+  if(el("app").classList.contains("hidden"))return;
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod&&e.key.toLowerCase()==="s"){e.preventDefault();saveFlow();}
+  else if(mod&&e.key.toLowerCase()==="z"&&!document.querySelector(".overlay")){e.preventDefault();undo();}
+});
+window.addEventListener("beforeunload",e=>{
+  if(!el("app").classList.contains("hidden")&&hasContent(state)&&isDirty()){e.preventDefault();e.returnValue="";}
+});
+setInterval(updateStatus,60000);
+
 let dragOv;
 window.addEventListener("dragover",e=>{if(el("app").classList.contains("hidden"))return;e.preventDefault();if(!dragOv){dragOv=document.createElement("div");dragOv.id="appDrop";dragOv.textContent="Drop CSV to load";document.body.appendChild(dragOv);}});
 window.addEventListener("dragleave",e=>{if(e.clientX<=0||e.clientY<=0||e.clientX>=innerWidth||e.clientY>=innerHeight){if(dragOv){dragOv.remove();dragOv=null;}}});
 window.addEventListener("drop",e=>{if(dragOv){dragOv.remove();dragOv=null;}if(el("app").classList.contains("hidden"))return;e.preventDefault();handleDrop(e);});
+
+bootStart();
 </script>
 </body>
 </html>
