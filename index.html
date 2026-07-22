@@ -851,7 +851,6 @@ function applyTFilter(){
 
 /* ================= RENDER ================= */
 const fmt=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"});
-function renderAll(){renderDonations();renderAccounts();renderTxns();updateStatus();}
 
 function updateStatus(){
   const pill=el("savePill");if(!pill)return;
@@ -1813,9 +1812,14 @@ function showPage(p){
   curPage=p;
   el("pageDonations").classList.toggle("hidden",p!=="donations");
   el("pageAccounts").classList.toggle("hidden",p!=="accounts");
+  el("pageReports").classList.toggle("hidden",p!=="reports");
   el("btnNewDonation").classList.toggle("hidden",p!=="donations");
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.page===p));
 }
+
+function renderAll(){renderDonations();renderAccounts();renderTxns();renderReport();updateStatus();}
+
+
 function openApp(){
   normalizeState(state);ensureAccountsExist();
   if(state.savedSig==null)state.savedSig=sig(state); // computed after normalising, so a freshly opened file reads as clean
@@ -1858,6 +1862,16 @@ async function handleDrop(e){
 }
   
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showPage(t.dataset.page));
+
+["fRRange","rFrom","rTo"].forEach(id=>el(id).addEventListener("change",()=>{
+  const custom=el("fRRange").value==="custom";
+  el("rCustomFrom").classList.toggle("hidden",!custom);
+  el("rCustomTo").classList.toggle("hidden",!custom);
+  renderReport();
+}));
+el("btnRExpand").onclick=()=>{tagNames().forEach(t=>repExpanded.add(t));renderReport();};
+el("btnRCollapse").onclick=()=>{repExpanded.clear();renderReport();};
+el("btnRExport").onclick=openReportExport;
 
 el("btnNewDonation").onclick=openDonationModal;
 el("btnNewTxn").onclick=openTxnModal;
