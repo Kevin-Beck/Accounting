@@ -215,7 +215,6 @@
     <button class="primary" id="btnNewDonation">+ New donation</button>
     <button id="btnSave">Save</button>
     <button id="btnBackups2">Backups</button>
-    <button class="ghost" id="btnClose">Close</button>
   </header>
 
   <!-- ============ PAGE 1: DONATIONS ============ -->
@@ -1411,6 +1410,8 @@ async function handleDrop(e){
   if(item&&item.getAsFileSystemHandle&&HAS_FSA){try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==="file"){await idbSet("fileHandle",h);const f=await h.getFile();importText(await f.text(),h.name,h);return;}}catch(_){}}
   const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=()=>importText(r.result,f.name,null);r.readAsText(f);}
 }
+  
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showPage(t.dataset.page));
 
 el("btnNewDonation").onclick=openDonationModal;
 el("btnNewTxn").onclick=openTxnModal;
@@ -1418,7 +1419,6 @@ el("btnNewAccount").onclick=()=>openAccountModal(null,null);
 el("btnSave").onclick=saveFlow;
 el("btnExport").onclick=exportFiltered;
 el("btnExportT").onclick=exportTxns;
-el("btnClose").onclick=()=>{persist();el("app").classList.add("hidden");el("start").classList.remove("hidden");bootStart();};
 
 ["fRange","fType","fDAcct","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{const ev=(id==="fName"||id==="fMin"||id==="fMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fRange").value==="custom";el("customFrom").classList.toggle("hidden",!custom);el("customTo").classList.toggle("hidden",!custom);renderDonations();});});
 el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value="");el("fRange").value="all";el("fType").value="";el("fDAcct").value="";el("customFrom").classList.add("hidden");el("customTo").classList.add("hidden");renderDonations();};
