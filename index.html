@@ -187,6 +187,25 @@
   tr.racct td:first-child{padding-left:40px;color:var(--muted)}
   tr.rtot td{font-weight:700;border-top:2px solid var(--line);background:#fbfcfd}
 
+  /* ---- money flow (Sankey) ---- */
+  #skWrap{position:relative;padding:14px 16px 2px;overflow-x:auto}
+  #skWrap svg{display:block}
+  text.skname{font-size:12.5px;font-weight:600;fill:var(--text)}
+  text.sksub{font-size:11px;fill:var(--muted);font-variant-numeric:tabular-nums}
+  .skrib{transition:opacity .12s}
+  svg.skfocus .skrib{opacity:.13}
+  svg.skfocus .skrib.skon{opacity:1}
+  .sknode{cursor:default}
+  .skcap{padding:6px 16px 16px;font-size:13px;color:var(--muted);max-width:860px;line-height:1.55}
+  .skcap b{color:var(--text);font-weight:600}
+  .skcap .skalert{display:block;margin-top:4px;color:#a32d2d;font-weight:600}
+  .sktip{position:absolute;z-index:20;pointer-events:none;background:#1c2430;color:#fff;
+         border-radius:8px;padding:8px 11px;font-size:12px;line-height:1.5;box-shadow:var(--shadow);white-space:nowrap}
+  .sktip .t1{font-weight:700;font-size:12.5px;margin-bottom:3px}
+  .sktip .tr{display:flex;justify-content:space-between;gap:20px}
+  .sktip .tr span{opacity:.72}
+  .sktip .tr b{font-variant-numeric:tabular-nums;font-weight:600}
+
   #appDrop{position:fixed;inset:0;background:rgba(37,99,235,.10);border:3px dashed var(--primary);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--primary-d);z-index:80}
   .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1c2430;color:#fff;padding:10px 12px 10px 18px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s;display:flex;align-items:center;gap:12px;pointer-events:none}
   .toast.show{opacity:1;pointer-events:auto}
@@ -520,6 +539,19 @@
         </table>
         <div class="empty hidden" id="xrEmpty">No withdrawals recorded yet.</div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="phead"><h2>Money flow</h2>
+        <div class="spacer" style="flex:1"></div>
+        <span class="muted" style="font-size:12.5px">Money in, by category  →  money out, by expense group</span>
+      </div>
+      <div id="skWrap">
+        <div id="skTip" class="sktip hidden"></div>
+        <div id="skPlot"></div>
+      </div>
+      <div class="skcap" id="skCap"></div>
+      <div class="empty hidden" id="skEmpty">Nothing came in or went out in this period.</div>
     </div>
   </div>
 </div>
@@ -1706,6 +1738,230 @@ function exportExpenseImage(){
   });
 }
 
+/* ---- money flow (Sankey) ----
+   Third block on the same period control. Both sides are computed from the same
+   filtered rows and the reserve node is their *residual*, never a figure read
+   from anywhere else — that is what makes the ribbons meet with no gap. Exactly
+   one of "From savings" / "To savings" can exist, because the residual is a
+   single signed number.
+
+   Income here means money arriving from outside: donations and deposits, grouped
+   by the category of the account it landed in. A transfer is movement, not income
+   (§4), and an opening balance is a reserve the ledger started with, not income —
+   both are excluded, which is what leaves income − spending meaningful. Anything
+   the residual does not explain surfaces in the node's tooltip instead. */
+const SK_C={
+  inBar:"#1D9E75",  inRib:"#5DCAA5",
+  exBar:"#D85A30",
+  fromBar:"#BA7517",fromBg:"#FAEEDA",
+  toBar:"#5F5E5A",  toBg:"#F1EFE8",
+  alert:"#A32D2D"
+};
+const SK_MAXNODES=9;    /* beyond this a column rolls its tail into one "Other" node */
+const SK_NODEGAP=8;     /* between ordinary nodes */
+const SK_BALGAP=20;     /* above the reserve node — the break is what says "not like the others" */
+const SK_MINNODE=3;     /* a sub-1% flow must stay visible, never be suppressed */
+let skLastW=0;
+
+function sankeyData(){
+  const{from,to}=reportRange();
+  /* the same windowing rule as reportData/expenseReportData — after `to` ignored,
+     before `from` excluded — so all three blocks answer the same question */
+  const inWin=when=>!((to&&when&&when>to)||(from&&when<from));
+
+  /* categories are matched case-insensitively and stored case-preserving (§5), so
+     fold to the casing tagNames() already chose — built once, since canonTag()
+     would rebuild the whole list on every allocation */
+  const tcanon=new Map();tagNames().forEach(t=>tcanon.set(t.toLowerCase(),t));
+
+  const inc=new Map();
+  const iget=n=>{if(!inc.has(n))inc.set(n,{name:n,value:0,count:0});return inc.get(n);};
+  for(const t of ledger()){
+    if(t.kind!=="donation"&&t.kind!=="deposit")continue;
+    if(!inWin(t.date||""))continue;
+    const seen=new Set();
+    for(const a of (t.allocs||[])){
+      const amt=+a.amount||0;if(amt<=0)continue;
+      const raw=tagOfAccount(a.account)||DEFAULT_TAG;
+      const c=tcanon.get(raw.toLowerCase())||raw,e=iget(c);
+      e.value+=amt;
+      if(!seen.has(c)){seen.add(c);e.count++;}   /* an entry split across a category counts once */
+    }
+  }
+  const exp=new Map();
+  const eget=n=>{if(!exp.has(n))exp.set(n,{name:n,value:0,count:0});return exp.get(n);};
+  withdrawals().forEach(t=>{
+    if(!inWin(t.date||""))return;
+    const amt=+t.amount||0;if(amt<=0)return;
+    const e=eget(egroupOf(t));e.value+=amt;e.count++;
+  });
+
+  const roll=(m,label)=>{
+    const l=[...m.values()].sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
+    if(l.length<=SK_MAXNODES)return l;
+    const keep=l.slice(0,SK_MAXNODES-1),rest=l.slice(SK_MAXNODES-1);
+    keep.push({name:label,rolled:rest.length,
+               value:rest.reduce((s,x)=>s+x.value,0),
+               count:rest.reduce((s,x)=>s+x.count,0)});
+    return keep;
+  };
+  const income=roll(inc,"Other categories"),expense=roll(exp,"Other groups");
+  const incomeTotal=income.reduce((s,x)=>s+x.value,0);
+  const expenseTotal=expense.reduce((s,x)=>s+x.value,0);
+  return{from,to,income,expense,incomeTotal,expenseTotal,delta:incomeTotal-expenseTotal};
+}
+
+/* the two columns, with the reserve node appended last to whichever side is short */
+function skColumns(d){
+  const src=d.income.map(x=>Object.assign({side:"in"},x));
+  const dst=d.expense.map(x=>Object.assign({side:"ex"},x));
+  let bal=null;
+  if(Math.abs(d.delta)>0.005){
+    bal=d.delta<0
+      ?{side:"bal",dir:"from",name:"From savings",value:-d.delta,denom:"spending"}
+      :{side:"bal",dir:"to",  name:"To savings",  value: d.delta,denom:"income"};
+    (bal.dir==="from"?src:dst).push(bal);
+  }
+  return{src,dst,bal,total:src.reduce((s,x)=>s+x.value,0)};
+}
+
+function skCaption(d){
+  if(Math.abs(d.delta)<=0.005)return "Income and spending matched exactly this period.";
+  if(d.delta<0)return `Spending exceeded income by <b>${fmt.format(-d.delta)}</b>. The hatched band shows the shortfall covered from existing balances.`;
+  return `Income exceeded spending by <b>${fmt.format(d.delta)}</b>. The hatched band shows funds carried forward.`;
+}
+
+function renderSankey(){
+  const plot=el("skPlot");if(!plot)return;
+  const d=sankeyData(),c=skColumns(d);
+  const has=c.total>0.005;
+  el("skEmpty").classList.toggle("hidden",has);
+  el("skWrap").classList.toggle("hidden",!has);
+  el("skCap").classList.toggle("hidden",!has);
+  if(!has){plot.innerHTML="";return;}
+
+  const cw=el("skWrap").clientWidth||0;
+  skLastW=cw;                                    /* raw measurement, so the observer cannot loop */
+  const W=Math.max(560,cw||960);
+  const labW=Math.max(112,Math.min(190,Math.round(W*0.20)));
+  const BAR=13,PADT=16,PADB=16;
+  const x0=labW,x1=W-labW-BAR,cx=(x1-(x0+BAR))*0.5;
+
+  /* pixels per dollar: fitted so whichever column is taller still clears its gaps */
+  const gapsOf=col=>(col.length-1)*SK_NODEGAP+(col.some(n=>n.side==="bal")?SK_BALGAP-SK_NODEGAP:0);
+  const plotH=Math.max(300,Math.min(620,Math.max(c.src.length,c.dst.length)*54));
+  const k=Math.max(0.2,Math.min((plotH-gapsOf(c.src))/c.total,(plotH-gapsOf(c.dst))/c.total));
+  /* clamp, then derive every ribbon end from the *clamped* node height — a node and
+     its ribbons then always agree, even where the minimum height kicked in */
+  const stack=col=>{col.forEach(n=>n.h=Math.max(SK_MINNODE,n.value*k));
+                    return col.reduce((s,n)=>s+n.h,0)+gapsOf(col);};
+  const hSrc=stack(c.src),hDst=stack(c.dst),colH=Math.max(hSrc,hDst);
+  const place=(col,tot)=>{let y=PADT+(colH-tot)/2;
+    col.forEach(n=>{if(n.side==="bal")y+=SK_BALGAP-SK_NODEGAP;n.y=y;y+=n.h+SK_NODEGAP;});};
+  place(c.src,hSrc);place(c.dst,hDst);
+  const H=PADT+colH+PADB;
+
+  const grand=reportData().grand;
+  const negative=grand.end<-0.0001;               /* red is reserved for exactly this */
+  const clip=(s,px)=>{const n=Math.max(6,Math.floor((px-14)/6.7));
+                      return s.length>n?s.slice(0,n-1)+"…":s;};
+  const barOf=n=>n.side==="bal"?(n.dir==="from"?SK_C.fromBar:SK_C.toBar):n.side==="in"?SK_C.inBar:SK_C.exBar;
+  const shareOf=n=>n.side==="bal"
+    ?(n.dir==="from"?(d.expenseTotal?n.value/d.expenseTotal:0):(d.incomeTotal?n.value/d.incomeTotal:0))
+    :n.side==="in"?(d.incomeTotal?n.value/d.incomeTotal:0):(d.expenseTotal?n.value/d.expenseTotal:0);
+  const denomOf=n=>n.side==="bal"?n.denom:n.side==="in"?"income":"spending";
+
+  /* ---- ribbons: pro-rata, because money is fungible. link(i,j) = src_i·dst_j/total,
+         which is why every source touches every sink and why the reserve band reads
+         as one uniform fraction of everything. ---- */
+  c.src.forEach(n=>n.cur=n.y);c.dst.forEach(n=>n.cur=n.y);
+  let ribs="";
+  c.src.forEach((s,i)=>c.dst.forEach((t,j)=>{
+    const v=s.value*t.value/c.total;if(v<=0)return;
+    const hs=s.h*(t.value/c.total),ht=t.h*(s.value/c.total);
+    const a=s.cur,b=t.cur;s.cur+=hs;t.cur+=ht;
+    const bal=s.side==="bal"?s:t.side==="bal"?t:null;
+    const fill=bal?`url(#${bal.dir==="from"?"skHatchFrom":"skHatchTo"})`:SK_C.inRib;
+    ribs+=`<path class="skrib" data-s="${i}" data-t="${j}" fill="${fill}" fill-opacity="${bal?1:0.42}"
+      data-sn="${esc(s.name)}" data-tn="${esc(t.name)}" data-v="${v}"
+      d="M${x0+BAR},${a} C${x0+BAR+cx},${a} ${x1-cx},${b} ${x1},${b}
+         L${x1},${b+ht} C${x1-cx},${b+ht} ${x0+BAR+cx},${a+hs} ${x0+BAR},${a+hs} Z"/>`;
+  }));
+
+  const nodes=(col,left)=>col.map((n,i)=>{
+    const x=left?x0:x1,cyc=n.y+n.h/2;
+    const tx=left?x-12:x+BAR+12,anc=left?"end":"start";
+    const two=n.side==="bal"||n.h>=19;
+    const isNeg=n.side==="bal"&&negative;
+    const stroke=n.side==="bal"?`stroke="${isNeg?SK_C.alert:barOf(n)}" stroke-width="1.5" stroke-dasharray="4 3"`:"";
+    const fill=n.side==="bal"?`url(#${n.dir==="from"?"skHatchFrom":"skHatchTo"})`:barOf(n);
+    const sub=`${fmt.format(n.value)} · ${pctStr(shareOf(n))} of ${denomOf(n)}`;
+    return `<g class="sknode" data-col="${left?"s":"t"}" data-i="${i}">
+      <rect x="${x}" y="${n.y}" width="${BAR}" height="${n.h}" rx="2" fill="${fill}" ${stroke}/>
+      ${n.h<7?"":`<text class="skname" x="${tx}" y="${two?cyc-2:cyc+4}" text-anchor="${anc}">${esc((isNeg?"⚠ ":"")+clip(n.name,labW))}</text>`}
+      ${two?`<text class="sksub" x="${tx}" y="${cyc+12}" text-anchor="${anc}">${esc(sub)}</text>`:""}
+    </g>`;
+  }).join("");
+
+  const hatch=(id,bg,ink)=>`<pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="8" height="8" fill="${bg}"/><line x1="0" y1="0" x2="0" y2="8" stroke="${ink}" stroke-width="2.6"/></pattern>`;
+
+  plot.innerHTML=`<svg id="skSvg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Money in by category flowing to money out by expense group">
+    <defs>${hatch("skHatchFrom",SK_C.fromBg,SK_C.fromBar)}${hatch("skHatchTo",SK_C.toBg,SK_C.toBar)}</defs>
+    ${ribs}${nodes(c.src,true)}${nodes(c.dst,false)}</svg>`;
+
+  let cap=skCaption(d);
+  if(negative)cap+=`<span class="skalert">⚠ The closing balance across all accounts is ${fmt.format(grand.end)}.</span>`;
+  el("skCap").innerHTML=cap;
+
+  /* ---- hover: the reserve node gets a different tooltip from every other node,
+         because what it carries is a stock, not a flow ---- */
+  const svg=el("skSvg"),tip=el("skTip"),wrap=el("skWrap");
+  const row=(l,v)=>`<div class="tr"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
+  const nodeTip=n=>{
+    if(n.side==="bal"){
+      const other=grand.end-grand.start-d.delta;   /* accounts opened inside the window */
+      return `<div class="t1">${esc(n.name)}</div>`
+        +row("Opening balance",fmt.format(grand.start))
+        +row(n.dir==="from"?"Drawn this period":"Added this period",(n.dir==="from"?"−":"+")+fmt.format(n.value))
+        +(Math.abs(other)>0.005?row("Opening balances added",fmt.format(other)):"")
+        +row("Closing balance",fmt.format(grand.end));
+    }
+    return `<div class="t1">${esc(n.name)}</div>`
+      +row("Amount",fmt.format(n.value))
+      +row("Share of "+denomOf(n),pctStr(shareOf(n)))
+      +row(n.side==="in"?"Entries":"Payments",String(n.count||0))
+      +(n.rolled?row("Combined",n.rolled+(n.side==="in"?" categories":" groups")):"");
+  };
+  const show=(html,e)=>{
+    tip.innerHTML=html;tip.classList.remove("hidden");
+    const r=wrap.getBoundingClientRect();
+    const x=e.clientX-r.left+wrap.scrollLeft+14,y=e.clientY-r.top-10;
+    tip.style.left=Math.min(x,wrap.scrollLeft+r.width-tip.offsetWidth-8)+"px";
+    tip.style.top=Math.max(4,Math.min(y,r.height-tip.offsetHeight-4))+"px";
+  };
+  const hide=()=>{tip.classList.add("hidden");svg.classList.remove("skfocus");
+                  svg.querySelectorAll(".skon").forEach(p=>p.classList.remove("skon"));};
+
+  svg.querySelectorAll(".sknode").forEach(g=>{
+    const col=g.dataset.col==="s"?c.src:c.dst,n=col[+g.dataset.i];
+    const sel=g.dataset.col==="s"?`[data-s="${g.dataset.i}"]`:`[data-t="${g.dataset.i}"]`;
+    g.onmouseenter=e=>{svg.classList.add("skfocus");
+      svg.querySelectorAll(".skrib"+sel).forEach(p=>p.classList.add("skon"));show(nodeTip(n),e);};
+    g.onmousemove=e=>show(nodeTip(n),e);
+    g.onmouseleave=hide;
+  });
+  svg.querySelectorAll(".skrib").forEach(p=>{
+    const sn=p.dataset.sn,tn=p.dataset.tn,v=+p.dataset.v;
+    const html=`<div class="t1">${esc(sn)} → ${esc(tn)}</div>`
+      +row("Amount",fmt.format(v))+row("Allocated","pro-rata");
+    p.onmouseenter=e=>{svg.classList.add("skfocus");p.classList.add("skon");show(html,e);};
+    p.onmousemove=e=>show(html,e);
+    p.onmouseleave=hide;
+  });
+}
+
 /* ================= AUTOCOMPLETE (generic) ================= */
 function attachAC(inp,list,itemsFn,onPick,newLabel){
   let active=-1,shown=[];
@@ -2385,7 +2641,7 @@ function showPage(p){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.page===p));
 }
 
-function renderAll(){renderDonations();renderAccounts();renderTxns();renderExpenseGroups();renderWithdrawals();renderReport();renderExpenseReport();updateStatus();}
+function renderAll(){renderDonations();renderAccounts();renderTxns();renderExpenseGroups();renderWithdrawals();renderReport();renderExpenseReport();renderSankey();updateStatus();}
 
 
 function openApp(){
@@ -2431,13 +2687,22 @@ async function handleDrop(e){
   
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showPage(t.dataset.page));
 
-/* one period control, both report blocks */
+/* one period control, all three report blocks — anything that alters the period
+   must drive every one of them, or the blocks disagree about "this period" */
 ["fRRange","rFrom","rTo"].forEach(id=>el(id).addEventListener("change",()=>{
   const custom=el("fRRange").value==="custom";
   el("rCustomFrom").classList.toggle("hidden",!custom);
   el("rCustomTo").classList.toggle("hidden",!custom);
-  renderReport();renderExpenseReport();
+  renderReport();renderExpenseReport();renderSankey();
 }));
+/* the Sankey is the only block whose layout depends on its own pixel width, and
+   renderAll() can run while the Reports page is hidden (width 0). Re-fit when the
+   container's measured width actually changes — comparing the raw measurement,
+   not the clamped one, is what stops this from re-entering itself. */
+if(window.ResizeObserver)new ResizeObserver(()=>{
+  const w=el("skWrap").clientWidth;
+  if(w>0&&Math.abs(w-skLastW)>2)renderSankey();
+}).observe(el("skWrap"));
 el("btnRExpand").onclick=()=>{tagNames().forEach(t=>repExpanded.add(t));renderReport();};
 el("btnRCollapse").onclick=()=>{repExpanded.clear();renderReport();};
 el("btnRExport").onclick=openReportExport;
