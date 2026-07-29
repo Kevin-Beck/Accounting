@@ -105,6 +105,8 @@
   .tag.k-init{background:#fff7ed;color:#b45309}
   .chip{display:inline-block;background:#f1f3f5;border-radius:999px;padding:2px 9px;font-size:11.5px;margin:2px 4px 2px 0}
   .chip b{font-variant-numeric:tabular-nums}
+  .chip.payee{background:#eef4ff;color:#1d4ed8;font-weight:600}
+  .chip.eg{background:#f5f3ff;color:#6d28d9;font-weight:600}
   .biz{margin-left:8px;font-size:10.5px;font-weight:600;color:var(--muted);background:#f1f3f5;padding:1px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
   .rowdel{color:var(--danger);cursor:pointer;opacity:0;font-size:12px}
   tr:hover .rowdel{opacity:1}
@@ -227,6 +229,7 @@
     <nav class="tabs">
       <button class="tab active" data-page="donations">Donations</button>
       <button class="tab" data-page="accounts">Accounts</button>
+      <button class="tab" data-page="expenses">Expenses</button>
       <button class="tab" data-page="reports">Reports</button>
     </nav>
     <span class="file" id="fileLabel">new file</span>
@@ -367,7 +370,81 @@
     </div>
   </div>
 
-  <!-- ============ PAGE 3: REPORTS ============ -->
+  <!-- ============ PAGE 3: EXPENSES ============ -->
+  <div id="pageExpenses" class="hidden">
+    <div class="panel">
+      <div class="phead">
+        <button class="ghost mini hidden" id="btnGrpBack">← All expense groups</button>
+        <h2 id="grpHeading">Expense groups</h2>
+        <button class="mini hidden" id="btnGrpTxns">Withdrawals in this group</button>
+        <button class="mini hidden" id="btnRenameGrp">Rename expense group</button>
+        <div class="spacer" style="flex:1"></div>
+        <span id="grpTotal" style="font-size:12.5px;color:var(--muted)"></span>
+        <button class="primary" id="btnNewWithdrawal">+ Record a withdrawal</button>
+      </div>
+      <div id="grpGrid" class="accgrid"></div>
+
+      <div id="payeeBox" class="donorbox hidden">
+        <div class="dh" id="payeeToggle"><span id="payeeCaret">▸</span> Breakdown by payee</div>
+        <div class="dl hidden" id="payeeList"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="phead"><h2>Withdrawals</h2>
+        <div class="spacer" style="flex:1"></div>
+        <button class="ghost" id="btnClearXFilters">Clear</button>
+        <button id="btnExportX">Export results as CSV</button>
+      </div>
+      <div class="filters">
+        <div>
+          <label>Date range</label>
+          <select id="fXRange">
+            <option value="all">All time</option>
+            <option value="1">Last 1 month</option>
+            <option value="2">Last 2 months</option>
+            <option value="3">Last 3 months</option>
+            <option value="6">Last 6 months</option>
+            <option value="12">Last 12 months</option>
+            <option value="custom">Custom…</option>
+          </select>
+        </div>
+        <div id="xCustomFrom" class="hidden"><label>From</label><input type="date" id="fXFrom"></div>
+        <div id="xCustomTo" class="hidden"><label>To</label><input type="date" id="fXTo"></div>
+        <div><label>Expense group</label><select id="fXGroup"><option value="">All expense groups</option></select></div>
+        <div><label>Payee</label><select id="fXPayee"><option value="">All payees</option></select></div>
+        <div><label>Paid from account</label><select id="fXAcct"><option value="">All accounts</option></select></div>
+        <div><label>Text contains</label><input type="text" id="fXText" placeholder="notes, ref, payee…"></div>
+        <div><label>Amount ($)</label><div class="row2"><input type="number" id="fXMin" placeholder="min" step="0.01"><input type="number" id="fXMax" placeholder="max" step="0.01"></div></div>
+      </div>
+
+      <div class="summary">
+        <div class="big">Total paid out<b id="xOut">$0.00</b></div>
+        <div class="s">Withdrawals<br><b id="xCount">0</b></div>
+        <div class="s">Payees<br><b id="xPayees">0</b></div>
+        <div class="s">Expense groups<br><b id="xGroups">0</b></div>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th data-xsort="date">Date <span class="arw"></span></th>
+            <th data-xsort="payee">Payee <span class="arw"></span></th>
+            <th data-xsort="group">Expense group <span class="arw"></span></th>
+            <th data-xsort="from">Paid from <span class="arw"></span></th>
+            <th data-xsort="amount" class="amt">Amount <span class="arw"></span></th>
+            <th>Ref</th>
+            <th>Notes</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="xTbody"></tbody>
+        </table>
+        <div class="empty hidden" id="xEmpty">No matching withdrawals.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAGE 4: REPORTS ============ -->
   <div id="pageReports" class="hidden">
     <div class="panel">
       <div class="phead"><h2>Report period</h2>
@@ -421,6 +498,29 @@
         <div class="empty hidden" id="rEmpty">No accounts yet.</div>
       </div>
     </div>
+
+    <div class="panel">
+      <div class="phead"><h2>By expense group</h2>
+        <div class="spacer" style="flex:1"></div>
+        <button class="ghost mini" id="btnXExpand">Expand all</button>
+        <button class="ghost mini" id="btnXCollapse">Collapse all</button>
+        <button id="btnXExport">Export data</button>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Expense group / payee</th>
+            <th class="amt">Spent before period</th>
+            <th class="amt">Spent in period</th>
+            <th class="amt">Payments</th>
+            <th class="amt">Share of period</th>
+            <th class="amt">Total to date</th>
+          </tr></thead>
+          <tbody id="xrTbody"></tbody>
+        </table>
+        <div class="empty hidden" id="xrEmpty">No withdrawals recorded yet.</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -431,6 +531,8 @@
 const DONATION_TYPES=["Card","PayPal","Cash","Check","Other"];
 const DEFAULT_ACCOUNT="General";
 const DEFAULT_TAG="Uncategorized";
+const DEFAULT_EGROUP="Ungrouped";   /* expense group a withdrawal falls into when none is given */
+const NO_PAYEE="(no payee)";        /* display-only stand-in for older withdrawals with no payee */
 const TAG_SEL="#tag:";              /* sentinel for "whole category" filter values.
                                        Safe because account names may not contain ":" */
 const TXN_KINDS={init:"Initial balance",donation:"Donation",deposit:"Deposit",withdrawal:"Withdrawal",transfer:"Transfer"};
@@ -446,11 +548,13 @@ function blankState(){return{rows:[],accounts:[{name:DEFAULT_ACCOUNT,created:tod
 let state=blankState();
 let sortKey="date",sortDir=-1;
 let tSortKey="date",tSortDir=-1;
+let xSortKey="date",xSortDir=-1;
 let fileHandle=null;
 let curPage="donations";
 let storageTrouble=false;
 let undoStack=[];
 let acctTag=null;   // null = category overview, otherwise the category being viewed
+let egGroup=null;   // null = expense-group overview, otherwise the group being viewed
 
 /* ================= tiny IndexedDB (file handle) ============ */
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("ledger_db",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
@@ -491,7 +595,7 @@ function contentString(st){
   const A=(st.accounts||[]).map(a=>[a.name,a.created||"",a.notes||"",a.tag||DEFAULT_TAG].join("\u0001")).join("\u0002");
   const R=(st.rows||[]).map(r=>[r.last,r.first,r.org?1:0,r.date,(+r.amount).toFixed(2),r.type,r.notes||"",
         allocStr(r.allocs&&r.allocs.length?r.allocs:[{account:DEFAULT_ACCOUNT,amount:r.amount}])].join("\u0001")).join("\u0002");
-  const T=(st.txns||[]).map(t=>[t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||""].join("\u0001")).join("\u0002");
+  const T=(st.txns||[]).map(t=>[t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",t.egroup||""].join("\u0001")).join("\u0002");
   return A+"\u0003"+R+"\u0003"+T;
 }
 function sig(st){return hash32(contentString(st||{}));}
@@ -608,6 +712,89 @@ function badTagName(n){
 }
 function tagOfAccount(name){const a=findAccount(name);return a?tagOf(a):"";}
 
+/* ================= PAYEES & EXPENSE GROUPS ================= */
+/* Both are derived from the withdrawals that use them, exactly like donors and
+   categories — there is no separate list to keep in sync. A payee or a group
+   exists for as long as at least one withdrawal names it.
+   An empty egroup is stored as "" and reads back as DEFAULT_EGROUP, so the
+   default never has to be written into the file. */
+function payeeOf(t){return String((t&&t.payee)||"").trim();}
+function egroupOf(t){return String((t&&t.egroup)||"").trim()||DEFAULT_EGROUP;}
+function withdrawals(){return state.txns.filter(t=>t.kind==="withdrawal");}
+function payeeList(){
+  const out=[];
+  withdrawals().forEach(t=>{const p=payeeOf(t);if(p&&!out.some(x=>x.toLowerCase()===p.toLowerCase()))out.push(p);});
+  return out.sort((a,b)=>a.localeCompare(b));
+}
+/* what the payee filter offers — includes the stand-in for withdrawals with no payee */
+function payeeFilterNames(){
+  const out=[];
+  withdrawals().forEach(t=>{const p=payeeOf(t)||NO_PAYEE;if(!out.some(x=>x.toLowerCase()===p.toLowerCase()))out.push(p);});
+  return out.sort((a,b)=>{
+    if(a===NO_PAYEE)return 1;
+    if(b===NO_PAYEE)return -1;
+    return a.localeCompare(b);
+  });
+}
+function egroupNames(){
+  const out=[];
+  withdrawals().forEach(t=>{const g=egroupOf(t);if(!out.some(x=>x.toLowerCase()===g.toLowerCase()))out.push(g);});
+  return out.sort((a,b)=>{
+    if(a===DEFAULT_EGROUP)return 1;
+    if(b===DEFAULT_EGROUP)return -1;
+    return a.localeCompare(b);
+  });
+}
+function canonPayee(n){
+  const s=String(n||"").trim();
+  if(!s)return "";
+  return payeeList().find(x=>x.toLowerCase()===s.toLowerCase())||s;
+}
+function canonEgroup(n){
+  const s=String(n||"").trim();
+  if(!s||s.toLowerCase()===DEFAULT_EGROUP.toLowerCase())return "";
+  return egroupNames().find(x=>x.toLowerCase()===s.toLowerCase())||s;
+}
+function badGroupName(n){
+  n=String(n||"").trim();
+  if(/[|:]/.test(n))return "Expense group names can’t contain “|” or “:”.";
+  return "";
+}
+function renamePayeeRefs(oldName,newName){
+  const o=String(oldName||"").toLowerCase();
+  state.txns.forEach(t=>{if(t.kind==="withdrawal"&&payeeOf(t).toLowerCase()===o)t.payee=newName;});
+}
+function renameEgroupRefs(oldName,newName){
+  const o=String(oldName||"").toLowerCase();
+  const store=String(newName||"").trim().toLowerCase()===DEFAULT_EGROUP.toLowerCase()?"":String(newName||"").trim();
+  state.txns.forEach(t=>{if(t.kind==="withdrawal"&&egroupOf(t).toLowerCase()===o)t.egroup=store;});
+}
+function egroupTotals(list){
+  const m=new Map();
+  (list||withdrawals()).forEach(t=>{
+    const g=egroupOf(t);
+    if(!m.has(g))m.set(g,{spent:0,count:0,payees:[]});
+    const o=m.get(g);o.spent+=(+t.amount||0);o.count++;
+    const p=payeeOf(t)||NO_PAYEE;
+    if(!o.payees.some(x=>x.toLowerCase()===p.toLowerCase()))o.payees.push(p);
+  });
+  return m;
+}
+function payeeTotals(list){
+  const m=new Map();
+  (list||withdrawals()).forEach(t=>{
+    const p=payeeOf(t)||NO_PAYEE,k=p.toLowerCase();
+    if(!m.has(k))m.set(k,{name:p,spent:0,count:0,groups:[]});
+    const o=m.get(k);o.spent+=(+t.amount||0);o.count++;
+    const g=egroupOf(t);if(!o.groups.includes(g))o.groups.push(g);
+  });
+  return [...m.values()].sort((a,b)=>b.spent-a.spent||a.name.localeCompare(b.name));
+}
+function payeesInGroup(g){
+  const n=String(g||"").toLowerCase();
+  return payeeTotals(withdrawals().filter(t=>egroupOf(t).toLowerCase()===n));
+}
+
 /* ================= LEDGER ================= */
 function ledger(){
   const out=[];
@@ -690,6 +877,8 @@ function parseAccountGrid(grid){
   return out;
 }
 function parseTxnGrid(grid){
+  /* Positional: Id,Date,Kind,From,To,Amount,Ref,Notes,Payee,ExpenseGroup.
+     Payee and ExpenseGroup were appended later — older files are simply short. */
   const out=[];
   for(const r of grid){
     if(/^id$/i.test((r[0]||"").trim()))continue;
@@ -699,7 +888,8 @@ function parseTxnGrid(grid){
     let amount=parseAmount(r[5]);
     if(!amount&&allocs.length)amount=allocs.reduce((s,a)=>s+a.amount,0);
     out.push({id:(r[0]||"").trim()||uid(),date:normalizeDate(r[1]),kind,from:(r[3]||"").trim(),
-              allocs,amount,ref:(r[6]||"").trim(),notes:(r[7]||"").trim()});
+              allocs,amount,ref:(r[6]||"").trim(),notes:(r[7]||"").trim(),
+              payee:(r[8]||"").trim(),egroup:(r[9]||"").trim()});
   }
   return out;
 }
@@ -727,14 +917,20 @@ function adoptState(st,handle,reason){
   archiveStored(reason||"replaced");
   state=normalizeState(st);
   fileHandle=handle||null;
-  acctTag=null;
+  acctTag=null;egGroup=null;
   openApp();
 }
 function normalizeState(s){
   s.rows=s.rows||[];s.accounts=s.accounts||[];s.txns=s.txns||[];
   s.accounts.forEach(a=>{a.tag=String(a.tag||"").trim()||DEFAULT_TAG;});
   s.rows.forEach(r=>{if(!r.allocs||!r.allocs.length)r.allocs=[{account:DEFAULT_ACCOUNT,amount:r.amount}];});
-  s.txns.forEach(t=>{t.allocs=t.allocs||[];if(!t.id)t.id=uid();});
+  s.txns.forEach(t=>{
+    t.allocs=t.allocs||[];if(!t.id)t.id=uid();
+    t.payee=String(t.payee||"").trim();
+    t.egroup=String(t.egroup||"").trim();
+    if(t.egroup.toLowerCase()===DEFAULT_EGROUP.toLowerCase())t.egroup="";
+    if(t.kind!=="withdrawal"){t.payee="";t.egroup="";}
+  });
   if(s.savedSig===undefined)s.savedSig=null;
   s.savedAt=s.savedAt||"";s.savedTo=s.savedTo||"";
   s.version=s.version||0;
@@ -833,7 +1029,7 @@ function applyTFilter(){
       const hit=(t.from&&acctFilterMatch(f.acct,t.from))||(t.allocs||[]).some(a=>acctFilterMatch(f.acct,a.account));
       if(!hit)return false;
     }
-    if(f.text){const blob=[t.notes,t.ref,t.who,t.from,(t.allocs||[]).map(a=>a.account).join(" ")].join(" ").toLowerCase();if(!blob.includes(f.text))return false;}
+    if(f.text){const blob=[t.notes,t.ref,t.who,t.from,t.payee||"",t.kind==="withdrawal"?egroupOf(t):"",(t.allocs||[]).map(a=>a.account).join(" ")].join(" ").toLowerCase();if(!blob.includes(f.text))return false;}
     if(f.min!=null&&t.amount<f.min)return false;
     if(f.max!=null&&t.amount>f.max)return false;
     return true;
@@ -1009,7 +1205,10 @@ function renderTxns(){
       : (t.from?esc(t.from):'<span class="muted">— external —</span>');
     const to=(t.allocs&&t.allocs.length)
       ? t.allocs.map(a=>`<span class="chip">${esc(a.account)} <b>${fmt.format(a.amount)}</b></span>`).join("")
-      : '<span class="muted">— external —</span>';
+      : (t.kind==="withdrawal"
+          ? (payeeOf(t)?`<span class="chip payee">${esc(payeeOf(t))}</span>`:'<span class="muted">— external —</span>')
+            +`<span class="chip eg">${esc(egroupOf(t))}</span>`
+          : '<span class="muted">— external —</span>');
     const del=t.kind==="donation"
       ? `<span class="muted" style="font-size:11.5px" title="Delete this on the Donations page">from donation</span>`
       : `<span class="rowdel" data-id="${t.id}">Delete</span>`;
@@ -1032,6 +1231,150 @@ function renderTxns(){
   });
   document.querySelectorAll("th[data-tsort] .arw").forEach(a=>a.textContent="");
   const th=document.querySelector(`th[data-tsort="${tSortKey}"] .arw`);if(th)th.textContent=tSortDir<0?"▼":"▲";
+}
+
+/* ================= FILTER: withdrawals ================= */
+function currentXFilter(){
+  const range=el("fXRange").value;let from="",to="";
+  if(range==="custom"){from=el("fXFrom").value;to=el("fXTo").value;}else if(range!=="all"){from=monthsAgo(parseInt(range));}
+  return{from,to,group:el("fXGroup").value,payee:el("fXPayee").value,acct:el("fXAcct").value,
+         text:el("fXText").value.trim().toLowerCase(),
+         min:el("fXMin").value!==""?parseFloat(el("fXMin").value):null,
+         max:el("fXMax").value!==""?parseFloat(el("fXMax").value):null};
+}
+function applyXFilter(){
+  const f=currentXFilter();
+  let rows=withdrawals().filter(t=>{
+    if(f.from&&t.date&&t.date<f.from)return false;
+    if(f.to&&t.date&&t.date>f.to)return false;
+    if(f.group&&egroupOf(t)!==f.group)return false;
+    if(f.payee&&(payeeOf(t)||NO_PAYEE)!==f.payee)return false;
+    if(f.acct&&!acctFilterMatch(f.acct,t.from))return false;
+    if(f.text){const blob=[t.notes,t.ref,t.payee,t.from,egroupOf(t)].join(" ").toLowerCase();if(!blob.includes(f.text))return false;}
+    if(f.min!=null&&t.amount<f.min)return false;
+    if(f.max!=null&&t.amount>f.max)return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let A,B;
+    if(xSortKey==="amount"){A=a.amount;B=b.amount;}
+    else if(xSortKey==="payee"){A=(payeeOf(a)||NO_PAYEE).toLowerCase();B=(payeeOf(b)||NO_PAYEE).toLowerCase();}
+    else if(xSortKey==="group"){A=egroupOf(a).toLowerCase();B=egroupOf(b).toLowerCase();}
+    else if(xSortKey==="from"){A=(a.from||"").toLowerCase();B=(b.from||"").toLowerCase();}
+    else{A=a.date||"";B=b.date||"";}
+    return (A<B?-1:A>B?1:0)*xSortDir;
+  });
+  return rows;
+}
+
+/* ================= RENDER: expenses ================= */
+/* A flat dropdown that keeps the current choice only while it is still real —
+   the grouped account version of this is syncAccountSelect. */
+function syncSimpleSelect(id,allLabel,items){
+  const sel=el(id);if(!sel)return;
+  const cur=sel.value;
+  sel.innerHTML=`<option value="">${esc(allLabel)}</option>`
+    +items.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join("");
+  sel.value=(cur===""||items.indexOf(cur)>-1)?cur:"";
+}
+
+function renderExpenseGroups(){
+  const grid=el("grpGrid"),groups=egroupNames();
+  if(egGroup&&!groups.some(g=>g===egGroup))egGroup=null;
+  const drilled=egGroup!==null;
+  el("btnGrpBack").classList.toggle("hidden",!drilled);
+  el("btnRenameGrp").classList.toggle("hidden",!drilled);
+  el("btnGrpTxns").classList.toggle("hidden",!drilled);
+
+  if(!drilled){
+    /* ---- top level: one card per expense group ---- */
+    el("grpHeading").textContent="Expense groups";
+    const totals=egroupTotals();
+    let total=0;
+    grid.innerHTML=groups.map(g=>{
+      const o=totals.get(g)||{spent:0,count:0,payees:[]};
+      total+=o.spent;
+      const shown=o.payees.slice(0,3).map(p=>`<span class="chip">${esc(p)}</span>`).join("")
+        +(o.payees.length>3?`<span class="chip">+${o.payees.length-3} more</span>`:"");
+      return `<div class="acc cat" data-grp="${esc(g)}">
+        <div class="accname" title="${esc(g)}">${esc(g)}</div>
+        <div class="accbal">${fmt.format(o.spent)}</div>
+        <div class="accsub">${o.payees.length} payee${o.payees.length!==1?'s':''} · ${o.count} payment${o.count!==1?'s':''}</div>
+        <div class="catnames">${shown}</div>
+        <span class="catarrow">›</span>
+      </div>`;
+    }).join("")||`<div class="empty" style="grid-column:1/-1">No withdrawals recorded yet — record one to start grouping expenses.</div>`;
+    el("grpTotal").innerHTML=`Total paid out <b style="color:var(--text);font-size:14px">${fmt.format(total)}</b>`;
+    grid.querySelectorAll(".acc.cat").forEach(c=>c.onclick=()=>{egGroup=c.dataset.grp;renderExpenseGroups();});
+  } else {
+    /* ---- inside a group: the payees paid out of it ---- */
+    el("grpHeading").textContent=egGroup;
+    const ps=payeesInGroup(egGroup);
+    let total=0;
+    grid.innerHTML=ps.map(p=>{
+      total+=p.spent;
+      const named=p.name!==NO_PAYEE;
+      return `<div class="acc" data-payee="${esc(p.name)}">
+        ${named?`<div class="accbtns"><span class="accedit" data-rename="${esc(p.name)}" title="Rename this payee everywhere">✎</span></div>`:""}
+        <div class="accname" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="accbal">${fmt.format(p.spent)}</div>
+        <div class="accsub">${p.count} payment${p.count!==1?'s':''}</div>
+      </div>`;
+    }).join("")||`<div class="empty" style="grid-column:1/-1">Nothing in this expense group.</div>`;
+    el("grpTotal").innerHTML=`Total in ${esc(egGroup)} <b style="color:var(--text);font-size:14px">${fmt.format(total)}</b>`;
+    grid.querySelectorAll(".acc").forEach(c=>c.onclick=e=>{
+      if(e.target.hasAttribute("data-rename"))return;
+      el("fXGroup").value=egGroup;el("fXPayee").value=c.dataset.payee;renderWithdrawals();
+      el("fXPayee").scrollIntoView({behavior:"smooth",block:"center"});
+    });
+    grid.querySelectorAll("[data-rename]").forEach(b=>b.onclick=e=>{e.stopPropagation();openRenamePayee(b.getAttribute("data-rename"));});
+  }
+
+  /* ---- the payee list itself, always visible ---- */
+  const all=payeeTotals(),box=el("payeeBox"),list=el("payeeList");
+  if(all.length){
+    list.innerHTML=all.map(p=>{
+      const gs=p.groups.slice(0,2).join(", ")+(p.groups.length>2?", +"+(p.groups.length-2):"");
+      return `<div class="drow"><span class="dn">${esc(p.name)}<span class="dc">${p.count} payment${p.count!==1?"s":""}</span><span class="dc">${esc(gs)}</span></span><span class="dv">${fmt.format(p.spent)}</span></div>`;
+    }).join("");
+    box.classList.remove("hidden");
+  } else box.classList.add("hidden");
+}
+
+function renderWithdrawals(){
+  syncSimpleSelect("fXGroup","All expense groups",egroupNames());
+  syncSimpleSelect("fXPayee","All payees",payeeFilterNames());
+  syncAccountSelect("fXAcct");
+  const rows=applyXFilter();
+  const tb=el("xTbody");tb.innerHTML="";
+  el("xEmpty").classList.toggle("hidden",rows.length>0);
+  let out=0;const ps=new Set(),gs=new Set();
+  for(const t of rows){
+    out+=t.amount;
+    ps.add((payeeOf(t)||NO_PAYEE).toLowerCase());
+    gs.add(egroupOf(t).toLowerCase());
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${t.date||"—"}</td>
+      <td>${payeeOf(t)?esc(payeeOf(t)):'<span class="muted">— not recorded —</span>'}</td>
+      <td><span class="chip eg">${esc(egroupOf(t))}</span></td>
+      <td>${t.from?esc(t.from):'<span class="muted">—</span>'}</td>
+      <td class="amt">${fmt.format(t.amount)}</td>
+      <td>${esc(t.ref||"")}</td><td class="notes">${esc(t.notes||"")}</td>
+      <td><span class="rowdel" data-id="${esc(t.id)}">Delete</span></td>`;
+    tb.appendChild(tr);
+  }
+  el("xOut").textContent=fmt.format(out);
+  el("xCount").textContent=rows.length;
+  el("xPayees").textContent=ps.size;
+  el("xGroups").textContent=gs.size;
+  tb.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{
+    const t=state.txns.find(x=>x.id===b.dataset.id);if(!t)return;
+    pushUndo("deleted a withdrawal"+(payeeOf(t)?" to "+payeeOf(t):""));
+    state.txns=state.txns.filter(x=>x.id!==b.dataset.id);persist();renderAll();
+    toast("Withdrawal deleted.","Undo",undo);
+  });
+  document.querySelectorAll("th[data-xsort] .arw").forEach(a=>a.textContent="");
+  const th=document.querySelector(`th[data-xsort="${xSortKey}"] .arw`);if(th)th.textContent=xSortDir<0?"▼":"▲";
 }
 
 /* ================= REPORTS ================= */
@@ -1133,6 +1476,86 @@ function renderReport(){
   });
 }
 
+/* ---- the same window, applied to withdrawals instead of accounts ---- */
+/* Spent before period = withdrawals dated before the window.
+   Spent in period     = withdrawals inside it.  Anything after it is ignored,
+   exactly as reportData() does, so both blocks answer the same question. */
+let egExpanded=new Set();
+function pctStr(v){return (v*100).toFixed(1)+"%";}
+
+function expenseReportData(){
+  const{from,to}=reportRange();
+  const groups=new Map();
+  const gget=g=>{if(!groups.has(g))groups.set(g,{name:g,before:0,spend:0,count:0,payees:new Map()});return groups.get(g);};
+  withdrawals().forEach(t=>{
+    const when=t.date||"",amt=+t.amount||0;
+    if(to&&when&&when>to)return;
+    const g=gget(egroupOf(t));
+    const pname=payeeOf(t)||NO_PAYEE,pk=pname.toLowerCase();
+    if(!g.payees.has(pk))g.payees.set(pk,{name:pname,before:0,spend:0,count:0});
+    const p=g.payees.get(pk);
+    if(from&&when<from){g.before+=amt;p.before+=amt;return;}
+    g.spend+=amt;g.count++;p.spend+=amt;p.count++;
+  });
+  const cats=[...groups.values()].map(g=>({
+    name:g.name,before:g.before,spend:g.spend,count:g.count,total:g.before+g.spend,
+    payees:[...g.payees.values()].map(p=>({name:p.name,before:p.before,spend:p.spend,count:p.count,total:p.before+p.spend}))
+             .sort((a,b)=>b.spend-a.spend||a.name.localeCompare(b.name))
+  })).sort((a,b)=>b.spend-a.spend||a.name.localeCompare(b.name));
+  const grand=cats.reduce((o,c)=>({before:o.before+c.before,spend:o.spend+c.spend,count:o.count+c.count}),{before:0,spend:0,count:0});
+  grand.total=grand.before+grand.spend;
+  const share=v=>grand.spend?v/grand.spend:0;
+  cats.forEach(c=>{c.share=share(c.spend);c.payees.forEach(p=>p.share=share(p.spend));});
+  grand.share=grand.spend?1:0;
+  return{from,to,cats,grand};
+}
+
+/* the flat list of what is on screen — the exports follow this exactly */
+function expenseReportRows(){
+  const d=expenseReportData(),out=[];
+  d.cats.forEach(c=>{
+    out.push({level:0,grp:c.name,name:c.name,before:c.before,spend:c.spend,count:c.count,share:c.share,total:c.total});
+    if(egExpanded.has(c.name))c.payees.forEach(p=>out.push(Object.assign({level:1,grp:c.name},p)));
+  });
+  return{d,out};
+}
+
+function renderExpenseReport(){
+  if(!el("xrTbody"))return;
+  const d=expenseReportData();
+  const tb=el("xrTbody");tb.innerHTML="";
+  el("xrEmpty").classList.toggle("hidden",d.cats.length>0);
+  const cells=r=>`<td class="amt">${fmt.format(r.before)}</td>`
+    +`<td class="amt negv">${fmt.format(r.spend)}</td>`
+    +`<td class="amt">${r.count}</td>`
+    +`<td class="amt">${pctStr(r.share)}</td>`
+    +`<td class="amt">${fmt.format(r.total)}</td>`;
+
+  d.cats.forEach(c=>{
+    const open=egExpanded.has(c.name);
+    const tr=document.createElement("tr");
+    tr.className="rcat";tr.dataset.grp=c.name;
+    tr.innerHTML=`<td><span class="rcaret">${open?"▾":"▸"}</span> <b>${esc(c.name)}</b>
+      <span class="muted" style="font-weight:400;font-size:12px">${c.payees.length} payee${c.payees.length!==1?"s":""}</span></td>${cells(c)}`;
+    tb.appendChild(tr);
+    if(open)c.payees.forEach(p=>{
+      const r=document.createElement("tr");r.className="racct";
+      r.innerHTML=`<td>${esc(p.name)}</td>${cells(p)}`;
+      tb.appendChild(r);
+    });
+  });
+  if(d.cats.length){
+    const tr=document.createElement("tr");tr.className="rtot";
+    tr.innerHTML=`<td>Total across all expense groups</td>${cells(d.grand)}`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll(".rcat").forEach(tr=>tr.onclick=()=>{
+    const n=tr.dataset.grp;
+    if(egExpanded.has(n))egExpanded.delete(n);else egExpanded.add(n);
+    renderExpenseReport();
+  });
+}
+
 /* ---- export ---- */
 function openReportExport(){
   const{out}=reportRows();
@@ -1164,8 +1587,13 @@ function exportReportCSV(){
   downloadText(toCSV(g),stampName("category_report"));
   toast("Report exported as CSV.");
 }
-function exportReportImage(){
-  const{d,out}=reportRows();
+/* Hand-drawn on a 2×-scaled canvas with hard-coded geometry. Both report blocks
+   have five numeric columns, so they share it — a block with a different number
+   of columns would need every coordinate here recomputed by hand.
+   cfg: {title, firstHead, heads[5], rows:[{level,name,vals[5]}], totalLabel,
+         totalVals[5], text(k,v), color(k,v,isGroupRow), file} */
+function reportPNG(cfg){
+  const out=cfg.rows;
   const pad=28,W=1040,rowH=30,headTop=112,tableTop=headTop+34;
   const H=tableTop+out.length*rowH+44+30;
   const s=2,c=document.createElement("canvas");
@@ -1176,15 +1604,15 @@ function exportReportImage(){
   const line=(y,col)=>{g.strokeStyle=col||"#eef0f3";g.lineWidth=1;g.beginPath();g.moveTo(pad,y+.5);g.lineTo(W-pad,y+.5);g.stroke();};
 
   g.fillStyle="#fff";g.fillRect(0,0,W,H);
-  g.fillStyle="#1c2430";g.font=F(700,21);g.fillText("Category report",pad,44);
+  g.fillStyle="#1c2430";g.font=F(700,21);g.fillText(cfg.title,pad,44);
   g.fillStyle="#6b7480";g.font=F(400,13);
   g.fillText(rangeLabel(),pad,68);
   g.fillText((state.fileName||"new file")+"   ·   generated "+new Date().toLocaleString(),pad,88);
 
-  const colR=[492,622,752,882,1012],heads=["STARTING","MONEY IN","MONEY OUT","NET CHANGE","ENDING"];
+  const colR=[492,622,752,882,1012];
   g.font=F(600,11);g.fillStyle="#6b7480";
-  g.textAlign="left";g.fillText("CATEGORY / ACCOUNT",pad,headTop+22);
-  g.textAlign="right";heads.forEach((h,i)=>g.fillText(h,colR[i],headTop+22));
+  g.textAlign="left";g.fillText(cfg.firstHead,pad,headTop+22);
+  g.textAlign="right";cfg.heads.forEach((h,i)=>g.fillText(h,colR[i],headTop+22));
   line(tableTop-1,"#e3e6ea");
 
   out.forEach((r,i)=>{
@@ -1192,9 +1620,9 @@ function exportReportImage(){
     g.textAlign="left";g.font=F(cat?700:400,13);g.fillStyle=cat?"#1c2430":"#6b7480";
     g.fillText(clip(r.name,410-(cat?0:22)),pad+(cat?0:22),base);
     g.textAlign="right";g.font=F(cat?600:400,13);
-    [r.start,r.in,r.out,r.in-r.out,r.end].forEach((v,k)=>{
-      g.fillStyle=k===1?"#16a34a":k===2?"#dc2626":(k===3&&v<-0.0001)?"#dc2626":(cat?"#1c2430":"#414b57");
-      g.fillText(fmt.format(v),colR[k],base);
+    r.vals.forEach((v,k)=>{
+      g.fillStyle=cfg.color(k,v,cat);
+      g.fillText(cfg.text(k,v),colR[k],base);
     });
     line(y+rowH-1);
   });
@@ -1202,10 +1630,9 @@ function exportReportImage(){
   const ty=tableTop+out.length*rowH;
   line(ty,"#c9ced6");
   g.fillStyle="#1c2430";g.font=F(700,13.5);
-  g.textAlign="left";g.fillText("Total across all categories",pad,ty+27);
+  g.textAlign="left";g.fillText(cfg.totalLabel,pad,ty+27);
   g.textAlign="right";
-  [d.grand.start,d.grand.in,d.grand.out,d.grand.in-d.grand.out,d.grand.end]
-    .forEach((v,k)=>g.fillText(fmt.format(v),colR[k],ty+27));
+  cfg.totalVals.forEach((v,k)=>g.fillText(cfg.text(k,v),colR[k],ty+27));
   g.textAlign="left";g.font=F(400,11);g.fillStyle="#9aa1ab";
   g.fillText("Donation Ledger",pad,H-14);
 
@@ -1213,9 +1640,69 @@ function exportReportImage(){
     if(!b){toast("Could not create the image.");return;}
     const a=document.createElement("a");
     a.href=URL.createObjectURL(b);
-    a.download=stampName("category_report").replace(/\.csv$/,".png");
+    a.download=cfg.file;
     a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
     toast("Report image downloaded.");
+  });
+}
+function exportReportImage(){
+  const{d,out}=reportRows();
+  reportPNG({
+    title:"Category report",
+    firstHead:"CATEGORY / ACCOUNT",
+    heads:["STARTING","MONEY IN","MONEY OUT","NET CHANGE","ENDING"],
+    rows:out.map(r=>({level:r.level,name:r.name,vals:[r.start,r.in,r.out,r.in-r.out,r.end]})),
+    totalLabel:"Total across all categories",
+    totalVals:[d.grand.start,d.grand.in,d.grand.out,d.grand.in-d.grand.out,d.grand.end],
+    text:(k,v)=>fmt.format(v),
+    color:(k,v,cat)=>k===1?"#16a34a":k===2?"#dc2626":(k===3&&v<-0.0001)?"#dc2626":(cat?"#1c2430":"#414b57"),
+    file:stampName("category_report").replace(/\.csv$/,".png")
+  });
+}
+
+/* ---- export: expense groups ---- */
+function openExpenseExport(){
+  const{out}=expenseReportRows();
+  const n=egExpanded.size;
+  const ov=modal(`<div class="mhead">Export expense report</div>
+    <div class="mbody">
+      <p>The export matches what’s on screen right now — ${out.length} row${out.length!==1?"s":""}, ${n?`${n} group${n===1?"":"s"} expanded into payees`:"groups only"}.</p>
+      <div class="choose">
+        <div class="choice"><h4>Spreadsheet (CSV)</h4>
+          <div class="c2">Numbers you can open in Excel or Sheets.</div>
+          <button class="primary" id="xgCsv">Download CSV</button></div>
+        <div class="choice"><h4>Picture (PNG)</h4>
+          <div class="c2">An image of this table, ready to paste into an email or document.</div>
+          <button class="primary" id="xgPng">Download image</button></div>
+      </div>
+    </div>
+    <div class="mfoot"><button data-close>Close</button></div>`,"confirm");
+  el("xgCsv").onclick=()=>{close(ov);exportExpenseCSV();};
+  el("xgPng").onclick=()=>{close(ov);exportExpenseImage();};
+}
+function exportExpenseCSV(){
+  const{d,out}=expenseReportRows();
+  const g=[["Expense group report"],["Range",d.from||"beginning",d.to||today()],
+           ["Generated",new Date().toISOString()],[],
+           ["Expense group","Payee","Spent before period","Spent in period","Payments","Share of period","Total to date"]];
+  const num=v=>(+v).toFixed(2);
+  out.forEach(r=>g.push([r.grp,r.level?r.name:"",num(r.before),num(r.spend),r.count,pctStr(r.share),num(r.total)]));
+  g.push(["TOTAL","",num(d.grand.before),num(d.grand.spend),d.grand.count,pctStr(d.grand.share),num(d.grand.total)]);
+  downloadText(toCSV(g),stampName("expense_report"));
+  toast("Expense report exported as CSV.");
+}
+function exportExpenseImage(){
+  const{d,out}=expenseReportRows();
+  reportPNG({
+    title:"Expense group report",
+    firstHead:"EXPENSE GROUP / PAYEE",
+    heads:["BEFORE PERIOD","SPENT IN PERIOD","PAYMENTS","SHARE","TOTAL TO DATE"],
+    rows:out.map(r=>({level:r.level,name:r.name,vals:[r.before,r.spend,r.count,r.share,r.total]})),
+    totalLabel:"Total across all expense groups",
+    totalVals:[d.grand.before,d.grand.spend,d.grand.count,d.grand.share,d.grand.total],
+    text:(k,v)=>k===2?String(v):k===3?pctStr(v):fmt.format(v),
+    color:(k,v,cat)=>k===1?"#dc2626":(cat?"#1c2430":"#414b57"),
+    file:stampName("expense_report").replace(/\.csv$/,".png")
   });
 }
 
@@ -1276,9 +1763,9 @@ function readAllocs(wrap){
 }
 function allocTotal(wrap){return readAllocs(wrap).reduce((s,a)=>s+a.amount,0);}
 function validateAllocs(allocs,expected){
-  if(!allocs.length)return "Add at least one account.";
+  if(!allocs.length)return "Choose at least one account for this money to go to.";
   for(const a of allocs){
-    if(!a.account)return "Every line needs an account name.";
+    if(!a.account)return "Please choose an account for every line — one is still empty.";
     if(!(a.amount>0))return `Enter an amount greater than zero for “${a.account}”.`;
   }
   const names=allocs.map(a=>a.account.toLowerCase());
@@ -1303,6 +1790,7 @@ function openDonationModal(){
         <label>Direct these funds to</label>
         <div id="dAllocs" class="allocs"></div>
         <div class="allocfoot"><button type="button" id="dAddAlloc">+ Add another account</button><span class="allocsum" id="dAllocSum"></span></div>
+        <div class="hint">No account is picked for you — choose where this donation belongs before saving.</div>
       </div>
       <div><label>Notes</label><textarea id="dNotes" rows="2" placeholder="Optional"></textarea></div>
       <div class="err" id="dErr"></div>
@@ -1316,7 +1804,9 @@ function openDonationModal(){
     "Add new donor");
   orgBox.addEventListener("change",refreshDonor);
 
-  addAllocRow(wrap,DEFAULT_ACCOUNT,"");
+  /* Deliberately blank — a pre-picked account is too easy to skip past,
+     and validateAllocs() refuses to save until one is chosen. */
+  addAllocRow(wrap,"","");
   function showSum(){
     const total=parseFloat(el("dAmt").value)||0;
     const sum=allocTotal(wrap),rem=total-sum,s=el("dAllocSum");
@@ -1483,7 +1973,7 @@ function deleteAccount(name){
 }
 
 /* ================= NEW TRANSACTION ================= */
-function openTxnModal(){
+function openTxnModal(presetKind){
   const ov=modal(`
     <div class="mhead">New transaction</div>
     <div class="mbody">
@@ -1493,6 +1983,10 @@ function openTxnModal(){
         <option value="deposit">Deposit — add money straight into an account</option>
       </select></div>
       <div id="tFromWrap" class="ac"><label>From account</label><input type="text" id="tFrom" autocomplete="off" placeholder="Account"><div class="ac-list hidden" id="tFromList"></div><div class="hint" id="tFromBal"></div></div>
+      <div id="tPayeeWrap" class="ac hidden"><label>Paid to (payee)</label><input type="text" id="tPayee" autocomplete="off" placeholder="Who received the money?"><div class="ac-list hidden" id="tPayeeList"></div>
+        <div class="hint">Start typing to pick someone you have paid before, or type a new name to add them to your payee list.</div></div>
+      <div id="tGroupWrap" class="ac hidden"><label>Expense group</label><input type="text" id="tGroup" autocomplete="off" placeholder="e.g. Utilities"><div class="ac-list hidden" id="tGroupList"></div>
+        <div class="hint">Groups withdrawals together for reporting. Type a name that doesn’t exist yet to create it. Left blank, it goes to “${DEFAULT_EGROUP}”.</div></div>
       <div id="tAmtWrap" class="hidden"><label>Amount ($)</label><input type="number" id="tAmt" step="0.01" min="0" placeholder="0.00"></div>
       <div id="tToWrap">
         <label id="tToLabel">To accounts</label>
@@ -1509,6 +2003,9 @@ function openTxnModal(){
   const wrap=el("tAllocs"),fromInp=el("tFrom");
   addAllocRow(wrap,"","");
   attachAC(fromInp,el("tFromList"),accountNames,()=>showFromBal());
+  attachAC(el("tPayee"),el("tPayeeList"),payeeList,null,"Add new payee");
+  attachAC(el("tGroup"),el("tGroupList"),egroupNames,null,"New expense group");
+  if(egGroup&&egGroup!==DEFAULT_EGROUP)el("tGroup").value=egGroup;
   function showFromBal(){
     const a=findAccount(fromInp.value);
     el("tFromBal").textContent=a?`${tagOf(a)} · current balance ${fmt.format(balanceOf(a.name))}`:"";
@@ -1521,23 +2018,29 @@ function openTxnModal(){
   el("tAddAlloc").onclick=()=>{addAllocRow(wrap,"","");wrap.lastElementChild.querySelector(".allocAcc").focus();sumOut();};
 
   function applyKind(){
-    const k=el("tKind").value;
+    const k=el("tKind").value,wd=k==="withdrawal";
     el("tFromWrap").classList.toggle("hidden",k==="deposit");
-    el("tAmtWrap").classList.toggle("hidden",k!=="withdrawal");
-    el("tToWrap").classList.toggle("hidden",k==="withdrawal");
+    el("tPayeeWrap").classList.toggle("hidden",!wd);
+    el("tGroupWrap").classList.toggle("hidden",!wd);
+    el("tAmtWrap").classList.toggle("hidden",!wd);
+    el("tToWrap").classList.toggle("hidden",wd);
     el("tToLabel").textContent=k==="deposit"?"Into accounts":"To accounts";
   }
+  if(presetKind&&TXN_KINDS[presetKind])el("tKind").value=presetKind;
   el("tKind").onchange=applyKind;applyKind();
 
   el("tSave").onclick=()=>{
     const kind=el("tKind").value,date=el("tDate").value||today();
     const ref=el("tRef").value.trim(),notes=el("tNotes").value.trim();
     const from=fromInp.value.trim();
+    const payee=el("tPayee").value.trim(),groupRaw=el("tGroup").value.trim();
     let allocs=[],amount=0,err="";
     if(kind==="withdrawal"){
       amount=parseFloat(el("tAmt").value);
       if(!from)err="Which account is the money coming out of?";
       else if(isNaN(amount)||amount<=0)err="Please enter a valid amount.";
+      else if(!payee)err="Who was this paid to? Enter a payee so the payment can be tracked.";
+      else err=badGroupName(groupRaw);
     }else{
       allocs=readAllocs(wrap);
       err=validateAllocs(allocs,null);
@@ -1550,18 +2053,75 @@ function openTxnModal(){
     if(err){el("tErr").textContent=err;return;}
     el("tErr").textContent="";
     const names=[...allocs.map(a=>a.account)];if(kind!=="deposit")names.push(from);
+    const knownPayee=payeeList().some(p=>p.toLowerCase()===payee.toLowerCase());
     ensureAccountsThen(names,()=>{
       const rec={id:uid(),date,kind,from:kind==="deposit"?"":canonAccount(from),
-                 allocs:allocs.map(a=>({account:canonAccount(a.account),amount:a.amount})),amount,ref,notes};
+                 allocs:allocs.map(a=>({account:canonAccount(a.account),amount:a.amount})),amount,ref,notes,
+                 payee:kind==="withdrawal"?canonPayee(payee):"",
+                 egroup:kind==="withdrawal"?canonEgroup(groupRaw):""};
       const commit=()=>{pushUndo("added a "+TXN_KINDS[kind].toLowerCase());state.txns.push(rec);persist();renderAll();close(ov);toast(TXN_KINDS[kind]+" recorded.");};
-      if(rec.from){
-        const after=balanceOf(rec.from)-amount;
-        if(after<-0.005){confirmOverdraft(rec.from,after,commit);return;}
-      }
-      commit();
+      const proceed=()=>{
+        if(rec.from){
+          const after=balanceOf(rec.from)-amount;
+          if(after<-0.005){confirmOverdraft(rec.from,after,commit);return;}
+        }
+        commit();
+      };
+      if(kind==="withdrawal"&&!knownPayee)confirmNewPayee(rec.payee,proceed);
+      else proceed();
     });
   };
   setTimeout(()=>el("tKind").focus(),50);
+}
+function confirmNewPayee(name,onYes){
+  const ov=modal(`<div class="mhead">Add new payee?</div>
+    <div class="mbody"><p>“${esc(name)}” isn’t in your payee list yet. Add them, so they can be autofilled next time?</p></div>
+    <div class="mfoot"><button data-close>No</button><button class="primary" id="pYes">Yes, add</button></div>`,"confirm");
+  el("pYes").onclick=()=>{close(ov);onYes();};
+}
+function openRenamePayee(old){
+  const n=withdrawals().filter(t=>payeeOf(t).toLowerCase()===String(old).toLowerCase()).length;
+  if(!n){toast("That payee has no withdrawals to rename.");return;}
+  const ov=modal(`
+    <div class="mhead">Rename payee</div>
+    <div class="mbody">
+      <div><label>Payee name</label><input type="text" id="rpName" value="${esc(old)}"></div>
+      <div class="hint">Applies to all ${n} withdrawal${n!==1?"s":""} paid to this payee. Using an existing payee’s name merges the two.</div>
+      <div class="err" id="rpErr"></div>
+    </div>
+    <div class="mfoot"><button class="ghost" data-close>Cancel</button><button class="primary" id="rpSave">Save</button></div>`,"confirm");
+  el("rpSave").onclick=()=>{
+    const raw=el("rpName").value.trim();
+    if(!raw){el("rpErr").textContent="Please enter a payee name.";return;}
+    pushUndo("renamed payee “"+old+"”");
+    renamePayeeRefs(old,canonPayee(raw));
+    persist();renderAll();close(ov);toast("Payee renamed.","Undo",undo);
+  };
+  setTimeout(()=>el("rpName").select(),50);
+}
+function openRenameGroup(){
+  const old=egGroup;if(!old)return;
+  const n=withdrawals().filter(t=>egroupOf(t)===old).length;
+  const ov=modal(`
+    <div class="mhead">Rename expense group</div>
+    <div class="mbody">
+      <div><label>Expense group name</label><input type="text" id="rgName" value="${esc(old)}"></div>
+      <div class="hint">Applies to all ${n} withdrawal${n!==1?"s":""} in this group. Using the name of an existing group merges the two.</div>
+      <div class="err" id="rgErr"></div>
+    </div>
+    <div class="mfoot"><button class="ghost" data-close>Cancel</button><button class="primary" id="rgSave">Save</button></div>`,"confirm");
+  el("rgSave").onclick=()=>{
+    const raw=el("rgName").value.trim();
+    if(!raw){el("rgErr").textContent="Please enter an expense group name.";return;}
+    const bad=badGroupName(raw);
+    if(bad){el("rgErr").textContent=bad;return;}
+    pushUndo("renamed expense group “"+old+"”");
+    const target=canonEgroup(raw)||DEFAULT_EGROUP;
+    renameEgroupRefs(old,target);
+    egGroup=target;
+    persist();renderAll();close(ov);toast("Expense group renamed.","Undo",undo);
+  };
+  setTimeout(()=>el("rgName").select(),50);
 }
 function confirmOverdraft(acct,after,onYes){
   const ov=modal(`<div class="mhead" style="color:var(--warn)">⚠️ This overdraws the account</div>
@@ -1585,8 +2145,8 @@ function serializeAll(includeMeta,st){
   g.push(["LastName","FirstName","Org","Date","Amount","Type","Notes","Accounts"]);
   (st.rows||[]).forEach(r=>g.push([r.last,r.first,r.org?"TRUE":"",r.date,(+r.amount).toFixed(2),r.type,r.notes,allocStr(r.allocs)]));
   g.push(["#!TRANSACTIONS"]);
-  g.push(["Id","Date","Kind","From","To","Amount","Ref","Notes"]);
-  (st.txns||[]).forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||""]));
+  g.push(["Id","Date","Kind","From","To","Amount","Ref","Notes","Payee","ExpenseGroup"]);
+  (st.txns||[]).forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",t.egroup||""]));
   const body=toCSV(g);
   return includeMeta?buildMetaLine(st)+"\r\n"+body:body;
 }
@@ -1596,11 +2156,17 @@ function donationsOnlyCSV(rows){
   return toCSV(g);
 }
 function txnsCSV(rows){
-  const g=[["Date","Type","From","To","Category","Amount","Ref","Notes"]];
+  const g=[["Date","Type","From","To","Category","Payee","Expense group","Amount","Ref","Notes"]];
   rows.forEach(t=>{
-    if(!t.allocs||!t.allocs.length){g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,"","",(+t.amount).toFixed(2),t.ref||"",t.notes||""]);return;}
-    t.allocs.forEach(a=>g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,a.account,tagOfAccount(a.account),(+a.amount).toFixed(2),t.ref||"",t.notes||""]));
+    const wd=t.kind==="withdrawal";
+    if(!t.allocs||!t.allocs.length){g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,"","",wd?payeeOf(t):"",wd?egroupOf(t):"",(+t.amount).toFixed(2),t.ref||"",t.notes||""]);return;}
+    t.allocs.forEach(a=>g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,a.account,tagOfAccount(a.account),"","",(+a.amount).toFixed(2),t.ref||"",t.notes||""]));
   });
+  return toCSV(g);
+}
+function withdrawalsCSV(rows){
+  const g=[["Date","Payee","Expense group","Paid from","Amount","Ref","Notes"]];
+  rows.forEach(t=>g.push([t.date,payeeOf(t),egroupOf(t),t.from||"",(+t.amount).toFixed(2),t.ref||"",t.notes||""]));
   return toCSV(g);
 }
 function stampName(prefix){const s=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");return `${prefix}_${s}.csv`;}
@@ -1644,6 +2210,7 @@ async function saveCopy(){ // never touches the linked file
 }
 function exportFiltered(){downloadText(donationsOnlyCSV(applyFilter()),stampName("donations_filtered"));toast("Exported filtered donations.");}
 function exportTxns(){downloadText(txnsCSV(applyTFilter()),stampName("transactions_filtered"));toast("Exported filtered transactions.");}
+function exportWithdrawals(){downloadText(withdrawalsCSV(applyXFilter()),stampName("withdrawals_filtered"));toast("Exported filtered withdrawals.");}
 
 /* ================= BACKUPS ================= */
 function openSnapshots(){
@@ -1784,7 +2351,7 @@ function newFileFlow(){
   const go=()=>{
     archiveStored("before starting a blank file");
     state=blankState();state.version=readMeta()?.version||0;state.savedSig=null;
-    fileHandle=null;curPage="donations";acctTag=null;openApp();
+    fileHandle=null;curPage="donations";acctTag=null;egGroup=null;openApp();
   };
   if(!hasContent(auto)){go();return;}
   const dirty=auto.savedSig!==sig(auto);
@@ -1812,12 +2379,13 @@ function showPage(p){
   curPage=p;
   el("pageDonations").classList.toggle("hidden",p!=="donations");
   el("pageAccounts").classList.toggle("hidden",p!=="accounts");
+  el("pageExpenses").classList.toggle("hidden",p!=="expenses");
   el("pageReports").classList.toggle("hidden",p!=="reports");
   el("btnNewDonation").classList.toggle("hidden",p!=="donations");
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.page===p));
 }
 
-function renderAll(){renderDonations();renderAccounts();renderTxns();renderReport();updateStatus();}
+function renderAll(){renderDonations();renderAccounts();renderTxns();renderExpenseGroups();renderWithdrawals();renderReport();renderExpenseReport();updateStatus();}
 
 
 function openApp(){
@@ -1863,15 +2431,19 @@ async function handleDrop(e){
   
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>showPage(t.dataset.page));
 
+/* one period control, both report blocks */
 ["fRRange","rFrom","rTo"].forEach(id=>el(id).addEventListener("change",()=>{
   const custom=el("fRRange").value==="custom";
   el("rCustomFrom").classList.toggle("hidden",!custom);
   el("rCustomTo").classList.toggle("hidden",!custom);
-  renderReport();
+  renderReport();renderExpenseReport();
 }));
 el("btnRExpand").onclick=()=>{tagNames().forEach(t=>repExpanded.add(t));renderReport();};
 el("btnRCollapse").onclick=()=>{repExpanded.clear();renderReport();};
 el("btnRExport").onclick=openReportExport;
+el("btnXExpand").onclick=()=>{egroupNames().forEach(g=>egExpanded.add(g));renderExpenseReport();};
+el("btnXCollapse").onclick=()=>{egExpanded.clear();renderExpenseReport();};
+el("btnXExport").onclick=openExpenseExport;
 
 el("btnNewDonation").onclick=openDonationModal;
 el("btnNewTxn").onclick=openTxnModal;
@@ -1883,9 +2455,18 @@ el("btnTagTxns").onclick=()=>{
   el("fAcct").value=TAG_SEL+acctTag;renderTxns();
   el("fAcct").scrollIntoView({behavior:"smooth",block:"center"});
 };
+el("btnNewWithdrawal").onclick=()=>openTxnModal("withdrawal");
+el("btnGrpBack").onclick=()=>{egGroup=null;renderExpenseGroups();};
+el("btnRenameGrp").onclick=openRenameGroup;
+el("btnGrpTxns").onclick=()=>{
+  if(!egGroup)return;
+  el("fXGroup").value=egGroup;el("fXPayee").value="";renderWithdrawals();
+  el("fXGroup").scrollIntoView({behavior:"smooth",block:"center"});
+};
 el("btnSave").onclick=saveFlow;
 el("btnExport").onclick=exportFiltered;
 el("btnExportT").onclick=exportTxns;
+el("btnExportX").onclick=exportWithdrawals;
 
 ["fRange","fType","fDAcct","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{const ev=(id==="fName"||id==="fMin"||id==="fMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fRange").value==="custom";el("customFrom").classList.toggle("hidden",!custom);el("customTo").classList.toggle("hidden",!custom);renderDonations();});});
 el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value="");el("fRange").value="all";el("fType").value="";el("fDAcct").value="";el("customFrom").classList.add("hidden");el("customTo").classList.add("hidden");renderDonations();};
@@ -1893,9 +2474,14 @@ el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach
 ["fTRange","fKind","fAcct","fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(id=>{const ev=(id==="fTText"||id==="fTMin"||id==="fTMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fTRange").value==="custom";el("tCustomFrom").classList.toggle("hidden",!custom);el("tCustomTo").classList.toggle("hidden",!custom);renderTxns();});});
 el("btnClearTFilters").onclick=()=>{["fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(i=>el(i).value="");el("fTRange").value="all";el("fKind").value="";el("fAcct").value="";el("tCustomFrom").classList.add("hidden");el("tCustomTo").classList.add("hidden");renderTxns();};
 
+["fXRange","fXGroup","fXPayee","fXAcct","fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(id=>{const ev=(id==="fXText"||id==="fXMin"||id==="fXMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fXRange").value==="custom";el("xCustomFrom").classList.toggle("hidden",!custom);el("xCustomTo").classList.toggle("hidden",!custom);renderWithdrawals();});});
+el("btnClearXFilters").onclick=()=>{["fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(i=>el(i).value="");el("fXRange").value="all";el("fXGroup").value="";el("fXPayee").value="";el("fXAcct").value="";el("xCustomFrom").classList.add("hidden");el("xCustomTo").classList.add("hidden");renderWithdrawals();};
+
 el("donorToggle").onclick=()=>{const l=el("donorList"),c=el("donorCaret");const hid=l.classList.toggle("hidden");c.textContent=hid?"▸":"▾";};
+el("payeeToggle").onclick=()=>{const l=el("payeeList"),c=el("payeeCaret");const hid=l.classList.toggle("hidden");c.textContent=hid?"▸":"▾";};
 document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==="date")?-1:1;}renderDonations();});
 document.querySelectorAll("th[data-tsort]").forEach(th=>th.onclick=()=>{const k=th.dataset.tsort;if(tSortKey===k)tSortDir*=-1;else{tSortKey=k;tSortDir=(k==="date")?-1:1;}renderTxns();});
+document.querySelectorAll("th[data-xsort]").forEach(th=>th.onclick=()=>{const k=th.dataset.xsort;if(xSortKey===k)xSortDir*=-1;else{xSortKey=k;xSortDir=(k==="date")?-1:1;}renderWithdrawals();});
 
 document.addEventListener("keydown",e=>{
   if(el("app").classList.contains("hidden"))return;
