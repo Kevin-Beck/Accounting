@@ -489,8 +489,8 @@
       <div class="summary">
         <div class="big">Ending balance<b id="rEnd">$0.00</b></div>
         <div class="s">Starting balance<br><b id="rStart">$0.00</b></div>
-        <div class="s">Money in<br><b id="rIn" class="pos">$0.00</b></div>
-        <div class="s">Money out<br><b id="rOut" class="negv">$0.00</b></div>
+        <div class="s">Donations<br><b id="rDon" class="pos">$0.00</b></div>
+        <div class="s">Withdrawals<br><b id="rWd" class="negv">$0.00</b></div>
         <div class="s">Net change<br><b id="rNet">$0.00</b></div>
       </div>
     </div>
@@ -507,8 +507,9 @@
           <thead><tr>
             <th>Category / account</th>
             <th class="amt">Starting balance</th>
-            <th class="amt">Money in</th>
-            <th class="amt">Money out</th>
+            <th class="amt">Donations</th>
+            <th class="amt">Withdrawals</th>
+            <th class="amt">Net transfers</th>
             <th class="amt">Net change</th>
             <th class="amt">Ending balance</th>
           </tr></thead>
@@ -1444,44 +1445,56 @@ function rangeLabel(){
   return (from||"the beginning")+"  →  "+(to||"today");
 }
 
-/* Starting balance = everything dated before the window.
-   Initial balances always count toward the starting balance, never money in.
-   Money in / out    = movement inside the window.
-   Ending balance    = start + in − out.  Entries after the window are ignored. */
+/* Starting balance = everything dated before the window, plus every initial balance.
+   Inside the window each entry lands in the column for its kind:
+     Donations     = donations and deposits credited to the account
+     Withdrawals   = withdrawals drawn from the account
+     Net transfers = transfers in minus transfers out
+   Net change     = donations − withdrawals + net transfers
+   Ending balance = start + net change.  Entries after the window are ignored. */
+const REP_ZERO=()=>({start:0,don:0,wd:0,xfer:0});
+function repSum(list){
+  const s=list.reduce((o,a)=>({start:o.start+a.start,don:o.don+a.don,wd:o.wd+a.wd,xfer:o.xfer+a.xfer}),REP_ZERO());
+  s.net=s.don-s.wd+s.xfer;s.end=s.start+s.net;
+  return s;
+}
 function reportData(){
   const{from,to}=reportRange();
   const m=new Map();
-  const get=n=>{const k=canonAccount(n);if(!m.has(k))m.set(k,{start:0,in:0,out:0});return m.get(k);};
+  const get=n=>{const k=canonAccount(n);if(!m.has(k))m.set(k,REP_ZERO());return m.get(k);};
   state.accounts.forEach(a=>get(a.name));
-  const apply=(name,delta,when,opening)=>{
+  const apply=(name,delta,when,kind)=>{
     if(to&&when&&when>to)return;
     const e=get(name);
-    if(opening||(from&&when<from)){e.start+=delta;return;}
-    if(delta>=0)e.in+=delta;else e.out-=delta;
+    if(kind==="init"||(from&&when<from)){e.start+=delta;return;}   /* an opening balance is not income */
+    if(kind==="withdrawal")e.wd-=delta;
+    else if(kind==="transfer")e.xfer+=delta;
+    else e.don+=delta;
   };
   for(const t of ledger()){
-    const when=t.date||"",opening=t.kind==="init";   /* an opening balance is not income */
-    if(t.from)apply(t.from,-t.amount,when,opening);
-    for(const a of (t.allocs||[]))apply(a.account,(+a.amount||0),when,opening);
+    const when=t.date||"";
+    if(t.from)apply(t.from,-t.amount,when,t.kind);
+    for(const a of (t.allocs||[]))apply(a.account,(+a.amount||0),when,t.kind);
   }
   const cats=tagNames().map(t=>{
     const accounts=accountsInTag(t).map(a=>{
-      const e=m.get(a.name)||{start:0,in:0,out:0};
-      return{name:a.name,start:e.start,in:e.in,out:e.out,end:e.start+e.in-e.out};
+      const e=m.get(a.name)||REP_ZERO();
+      return Object.assign({name:a.name},repSum([e]));
     }).sort((x,y)=>x.name.localeCompare(y.name));
-    const s=accounts.reduce((o,a)=>({start:o.start+a.start,in:o.in+a.in,out:o.out+a.out}),{start:0,in:0,out:0});
-    return{name:t,accounts,start:s.start,in:s.in,out:s.out,end:s.start+s.in-s.out};
+    return Object.assign({name:t,accounts},repSum(accounts));
   });
-  const grand=cats.reduce((o,c)=>({start:o.start+c.start,in:o.in+c.in,out:o.out+c.out}),{start:0,in:0,out:0});
-  grand.end=grand.start+grand.in-grand.out;
+  const grand=repSum(cats);
   return{from,to,cats,grand};
 }
+/* the six report columns, in order — screen, CSV and image all read from this */
+const REP_HEADS=["Starting balance","Donations","Withdrawals","Net transfers","Net change","Ending balance"];
+function repVals(r){return[r.start,r.don,r.wd,r.xfer,r.net,r.end];}
 
 /* the flat list of what is currently on screen — exports follow this exactly */
 function reportRows(){
   const d=reportData(),out=[];
   d.cats.forEach(c=>{
-    out.push({level:0,cat:c.name,name:c.name,start:c.start,in:c.in,out:c.out,end:c.end});
+    out.push({level:0,cat:c.name,name:c.name,start:c.start,don:c.don,wd:c.wd,xfer:c.xfer,net:c.net,end:c.end});
     if(repExpanded.has(c.name))c.accounts.forEach(a=>out.push(Object.assign({level:1,cat:c.name},a)));
   });
   return{d,out};
@@ -1492,16 +1505,17 @@ function renderReport(){
   const d=reportData();
   el("rRangeLabel").textContent=rangeLabel();
   el("rStart").textContent=fmt.format(d.grand.start);
-  el("rIn").textContent=fmt.format(d.grand.in);
-  el("rOut").textContent=fmt.format(d.grand.out);
-  el("rNet").textContent=fmt.format(d.grand.in-d.grand.out);
+  el("rDon").textContent=fmt.format(d.grand.don);
+  el("rWd").textContent=fmt.format(d.grand.wd);
+  el("rNet").textContent=fmt.format(d.grand.net);
   el("rEnd").textContent=fmt.format(d.grand.end);
 
   const tb=el("rTbody");tb.innerHTML="";
   el("rEmpty").classList.toggle("hidden",d.cats.length>0);
   const cell=(v,cls)=>`<td class="amt ${cls||""}">${fmt.format(v)}</td>`;
-  const cells=r=>cell(r.start)+cell(r.in,"pos")+cell(r.out,"negv")
-    +cell(r.in-r.out,(r.in-r.out)<-0.0001?"negv":"")+cell(r.end);
+  const neg=v=>v<-0.0001?"negv":"";
+  const cells=r=>cell(r.start)+cell(r.don,"pos")+cell(r.wd,"negv")
+    +cell(r.xfer,neg(r.xfer))+cell(r.net,neg(r.net))+cell(r.end);
 
   d.cats.forEach(c=>{
     const open=repExpanded.has(c.name);
@@ -1632,18 +1646,18 @@ function exportReportCSV(){
   const{d,out}=reportRows();
   const g=[["Category report"],["Range",d.from||"beginning",d.to||today()],
            ["Generated",new Date().toISOString()],[],
-           ["Category","Account","Starting balance","Money in","Money out","Net change","Ending balance"]];
+           ["Category","Account",...REP_HEADS]];
   const num=v=>(+v).toFixed(2);
-  out.forEach(r=>g.push([r.cat,r.level?r.name:"",num(r.start),num(r.in),num(r.out),num(r.in-r.out),num(r.end)]));
-  g.push(["TOTAL","",num(d.grand.start),num(d.grand.in),num(d.grand.out),num(d.grand.in-d.grand.out),num(d.grand.end)]);
+  out.forEach(r=>g.push([r.cat,r.level?r.name:"",...repVals(r).map(num)]));
+  g.push(["TOTAL","",...repVals(d.grand).map(num)]);
   downloadText(toCSV(g),stampName("category_report"));
   toast("Report exported as CSV.");
 }
-/* Hand-drawn on a 2×-scaled canvas with hard-coded geometry. Both report blocks
-   have five numeric columns, so they share it — a block with a different number
-   of columns would need every coordinate here recomputed by hand.
-   cfg: {title, firstHead, heads[5], rows:[{level,name,vals[5]}], totalLabel,
-         totalVals[5], text(k,v), color(k,v,isGroupRow), file} */
+/* Hand-drawn on a 2×-scaled canvas. Numeric columns are right-aligned to the
+   right edge and step left from there; five columns get the original spacing,
+   more columns are packed tighter and the name column shrinks to make room.
+   cfg: {title, firstHead, heads[n], rows:[{level,name,vals[n]}], totalLabel,
+         totalVals[n], text(k,v), color(k,v,isGroupRow), file} */
 function reportPNG(cfg){
   const out=cfg.rows;
   const pad=28,W=1040,rowH=30,headTop=112,tableTop=headTop+34;
@@ -1661,7 +1675,9 @@ function reportPNG(cfg){
   g.fillText(rangeLabel(),pad,68);
   g.fillText((state.fileName||"new file")+"   ·   generated "+new Date().toLocaleString(),pad,88);
 
-  const colR=[492,622,752,882,1012];
+  const nCol=cfg.heads.length,step=nCol>5?108:130;
+  const colR=cfg.heads.map((_,i)=>1012-(nCol-1-i)*step);
+  const nameW=410-(492-colR[0]);
   g.font=F(600,11);g.fillStyle="#6b7480";
   g.textAlign="left";g.fillText(cfg.firstHead,pad,headTop+22);
   g.textAlign="right";cfg.heads.forEach((h,i)=>g.fillText(h,colR[i],headTop+22));
@@ -1670,7 +1686,7 @@ function reportPNG(cfg){
   out.forEach((r,i)=>{
     const y=tableTop+i*rowH,base=y+20,cat=r.level===0;
     g.textAlign="left";g.font=F(cat?700:400,13);g.fillStyle=cat?"#1c2430":"#6b7480";
-    g.fillText(clip(r.name,410-(cat?0:22)),pad+(cat?0:22),base);
+    g.fillText(clip(r.name,nameW-(cat?0:22)),pad+(cat?0:22),base);
     g.textAlign="right";g.font=F(cat?600:400,13);
     r.vals.forEach((v,k)=>{
       g.fillStyle=cfg.color(k,v,cat);
@@ -1702,12 +1718,12 @@ function exportReportImage(){
   reportPNG({
     title:"Category report",
     firstHead:"CATEGORY / ACCOUNT",
-    heads:["STARTING","MONEY IN","MONEY OUT","NET CHANGE","ENDING"],
-    rows:out.map(r=>({level:r.level,name:r.name,vals:[r.start,r.in,r.out,r.in-r.out,r.end]})),
+    heads:["STARTING","DONATIONS","WITHDRAWALS","NET TRANSFERS","NET CHANGE","ENDING"],
+    rows:out.map(r=>({level:r.level,name:r.name,vals:repVals(r)})),
     totalLabel:"Total across all categories",
-    totalVals:[d.grand.start,d.grand.in,d.grand.out,d.grand.in-d.grand.out,d.grand.end],
+    totalVals:repVals(d.grand),
     text:(k,v)=>fmt.format(v),
-    color:(k,v,cat)=>k===1?"#16a34a":k===2?"#dc2626":(k===3&&v<-0.0001)?"#dc2626":(cat?"#1c2430":"#414b57"),
+    color:(k,v,cat)=>k===1?"#16a34a":k===2?"#dc2626":((k===3||k===4)&&v<-0.0001)?"#dc2626":(cat?"#1c2430":"#414b57"),
     file:stampName("category_report").replace(/\.csv$/,".png")
   });
 }
