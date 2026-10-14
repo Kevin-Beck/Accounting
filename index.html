@@ -1093,11 +1093,15 @@ function renderDonations(){
   const tb=el("tbody");tb.innerHTML="";
   el("emptyMsg").classList.toggle("hidden",rows.length>0);
   let total=0;const donorSums=new Map();
+  /* with an account filter, a split donation only counts the share given to the selection */
+  const sel=currentFilter().acct;
+  const share=r=>sel?(r.allocs||[]).filter(a=>acctFilterMatch(sel,a.account)).reduce((s,a)=>s+(+a.amount||0),0):r.amount;
   for(const r of rows){
-    total+=r.amount;
+    const amt=share(r);
+    total+=amt;
     const k=donorKey(r.last,r.first);
     if(!donorSums.has(k))donorSums.set(k,{name:displayName(r),org:!!r.org,sum:0,count:0});
-    const d=donorSums.get(k);d.sum+=r.amount;d.count++;
+    const d=donorSums.get(k);d.sum+=amt;d.count++;
     const idx=state.rows.indexOf(r);
     const chips=(r.allocs||[]).map(a=>`<span class="chip">${esc(a.account)} <b>${fmt.format(a.amount)}</b></span>`).join("")||'<span class="muted">—</span>';
     const tr=document.createElement("tr");
@@ -1161,7 +1165,15 @@ function tagTotals(){
   for(const a of state.accounts){
     const t=tagOf(a),e=m.get(a.name)||{bal:0,count:0};
     if(!out.has(t))out.set(t,{bal:0,count:0,accounts:[]});
-    const o=out.get(t);o.bal+=e.bal;o.count+=e.count;o.accounts.push(a.name);
+    const o=out.get(t);o.bal+=e.bal;o.accounts.push(a.name);
+  }
+  /* an entry split across several accounts in one category counts once for that category */
+  for(const x of ledger()){
+    const touched=new Set();
+    if(x.from)touched.add(x.from);
+    (x.allocs||[]).forEach(a=>touched.add(a.account));
+    const tags=new Set([...touched].map(n=>findAccount(n)).filter(Boolean).map(tagOf));
+    tags.forEach(t=>{if(out.has(t))out.get(t).count++;});
   }
   return out;
 }
@@ -1228,10 +1240,17 @@ function renderTxns(){
   const tb=el("tTbody");tb.innerHTML="";
   el("tEmpty").classList.toggle("hidden",rows.length>0);
   let inn=0,out=0,moved=0;
+  /* with an account filter, a split entry only counts the share that touched the selection */
+  const sel=currentTFilter().acct;
+  const share=t=>{
+    if(!sel)return t.amount;
+    if(t.from&&acctFilterMatch(sel,t.from))return t.amount;
+    return (t.allocs||[]).filter(a=>acctFilterMatch(sel,a.account)).reduce((s,a)=>s+(+a.amount||0),0);
+  };
   for(const t of rows){
-    if(t.kind==="withdrawal")out+=t.amount;
-    else if(t.kind==="transfer")moved+=t.amount;
-    else inn+=t.amount;
+    if(t.kind==="withdrawal")out+=share(t);
+    else if(t.kind==="transfer")moved+=share(t);
+    else if(t.kind!=="init")inn+=share(t);   /* an opening balance is not income */
     const from=t.kind==="donation"
       ? `${esc(t.who)}${t.org?'<span class="biz">Business</span>':'<span class="biz">Donor</span>'}`
       : (t.from?esc(t.from):'<span class="muted">— external —</span>');
@@ -1426,6 +1445,7 @@ function rangeLabel(){
 }
 
 /* Starting balance = everything dated before the window.
+   Initial balances always count toward the starting balance, never money in.
    Money in / out    = movement inside the window.
    Ending balance    = start + in − out.  Entries after the window are ignored. */
 function reportData(){
@@ -1433,16 +1453,16 @@ function reportData(){
   const m=new Map();
   const get=n=>{const k=canonAccount(n);if(!m.has(k))m.set(k,{start:0,in:0,out:0});return m.get(k);};
   state.accounts.forEach(a=>get(a.name));
-  const apply=(name,delta,when)=>{
+  const apply=(name,delta,when,opening)=>{
     if(to&&when&&when>to)return;
     const e=get(name);
-    if(from&&when<from){e.start+=delta;return;}
+    if(opening||(from&&when<from)){e.start+=delta;return;}
     if(delta>=0)e.in+=delta;else e.out-=delta;
   };
   for(const t of ledger()){
-    const when=t.date||"";
-    if(t.from)apply(t.from,-t.amount,when);
-    for(const a of (t.allocs||[]))apply(a.account,(+a.amount||0),when);
+    const when=t.date||"",opening=t.kind==="init";   /* an opening balance is not income */
+    if(t.from)apply(t.from,-t.amount,when,opening);
+    for(const a of (t.allocs||[]))apply(a.account,(+a.amount||0),when,opening);
   }
   const cats=tagNames().map(t=>{
     const accounts=accountsInTag(t).map(a=>{
