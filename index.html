@@ -107,6 +107,7 @@
   .chip b{font-variant-numeric:tabular-nums}
   .chip.payee{background:#eef4ff;color:#1d4ed8;font-weight:600}
   .chip.eg{background:#f5f3ff;color:#6d28d9;font-weight:600}
+  .chip.dim{opacity:.45}
   .biz{margin-left:8px;font-size:10.5px;font-weight:600;color:var(--muted);background:#f1f3f5;padding:1px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
   .rowdel{color:var(--danger);cursor:pointer;opacity:0;font-size:12px}
   tr:hover .rowdel{opacity:1}
@@ -167,6 +168,17 @@
   .allocfoot button{padding:6px 10px;font-size:12.5px;color:var(--primary);font-weight:600}
   .allocsum{font-size:12px;margin-left:auto;font-variant-numeric:tabular-nums}
   .allocsum.ok{color:var(--ok)} .allocsum.bad{color:var(--warn)}
+
+  /* combine split checks */
+  .mgbar{display:flex;gap:8px;align-items:center;font-size:12.5px}
+  .mglist{display:grid;gap:10px;max-height:52vh;overflow-y:auto}
+  .mg{border:1px solid var(--line);border-radius:10px;padding:11px 13px}
+  .mgtop{display:flex;gap:10px;align-items:flex-start;font-size:13px;font-weight:400;color:var(--text);margin:0;cursor:pointer}
+  .mgtop input{width:auto;margin-top:2px;box-shadow:none}
+  .mgwarn{margin:6px 0 0 26px;font-size:12px;color:var(--warn);font-weight:600}
+  .mgtab{margin:6px 0 0 16px;width:calc(100% - 16px)}
+  .mgtab td{padding:3px 10px;font-size:12px;border:none;color:var(--muted)}
+  .mgres{margin:6px 0 0 26px;font-size:12px}
 
   .ac{position:relative}
   .ac-list{position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);max-height:210px;overflow-y:auto;z-index:60}
@@ -358,6 +370,7 @@
         <div id="tCustomTo" class="hidden"><label>To</label><input type="date" id="fTTo"></div>
         <div><label>Transaction type</label><select id="fKind"><option value="">All types</option></select></div>
         <div><label>Account</label><select id="fAcct"><option value="">All accounts</option></select></div>
+        <div><label>Expense group</label><select id="fTGroup"><option value="">All expense groups</option></select></div>
         <div><label>Text contains</label><input type="text" id="fTText" placeholder="notes, donor, ref…"></div>
         <div><label>Amount ($)</label><div class="row2"><input type="number" id="fTMin" placeholder="min" step="0.01"><input type="number" id="fTMax" placeholder="max" step="0.01"></div></div>
       </div>
@@ -412,6 +425,7 @@
     <div class="panel">
       <div class="phead"><h2>Withdrawals</h2>
         <div class="spacer" style="flex:1"></div>
+        <button class="ghost" id="btnMergeChecks" title="Find checks or wires that were entered as several withdrawals and combine them">Combine split checks…</button>
         <button class="ghost" id="btnClearXFilters">Clear</button>
         <button id="btnExportX">Export results as CSV</button>
       </div>
@@ -561,7 +575,7 @@
 
 <script>
 /* ================= CONFIG ================= */
-const DONATION_TYPES=["Card","PayPal","Cash","Check","Other"];
+const DONATION_TYPES=["Check","Card","PayPal","Cash","Other"];   /* Check first — the most common */
 const DEFAULT_ACCOUNT="General";
 const DEFAULT_TAG="Uncategorized";
 const DEFAULT_EGROUP="Ungrouped";   /* expense group a withdrawal falls into when none is given */
@@ -613,6 +627,29 @@ function today(){return new Date().toISOString().slice(0,10);}
 function uid(){return "t"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
 function clone(o){return JSON.parse(JSON.stringify(o));}
 
+/* ---- forgiving text matching ----
+   Every search box and autocomplete goes through these. Capitals, accents,
+   punctuation, extra spaces and word order are all ignored, so "john smith",
+   "Smith John" and "smith, jo" all find "Smith, John", and "geo" finds "George". */
+function normText(s){
+  return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+}
+function tokens(s){const n=normText(s);return n?n.split(" "):[];}
+function looseMatch(hay,query){
+  const q=tokens(query);if(!q.length)return true;
+  const h=normText(hay);
+  return q.every(t=>h.includes(t));
+}
+/* 0 = same name, 1 = every word starts a word in it, 2 = found somewhere inside */
+function looseRank(hay,query){
+  const q=tokens(query),h=tokens(hay);
+  if(q.join(" ")===h.join(" ")||q.slice().sort().join(" ")===h.slice().sort().join(" "))return 0;
+  return q.every(t=>h.some(w=>w.startsWith(t)))?1:2;
+}
+/* the same name however it was typed: "john smith" and "Smith, John" share a key */
+function nameKey(s){return tokens(s).sort().join(" ");}
+
 /* allocations are stored in one cell as  Account:12.50|Other Account:7.50  */
 function allocStr(allocs){return (allocs||[]).map(a=>`${a.account}:${(+a.amount||0).toFixed(2)}`).join("|");}
 function parseAllocs(s){
@@ -628,7 +665,7 @@ function contentString(st){
   const A=(st.accounts||[]).map(a=>[a.name,a.created||"",a.notes||"",a.tag||DEFAULT_TAG].join("\u0001")).join("\u0002");
   const R=(st.rows||[]).map(r=>[r.last,r.first,r.org?1:0,r.date,(+r.amount).toFixed(2),r.type,r.notes||"",
         allocStr(r.allocs&&r.allocs.length?r.allocs:[{account:DEFAULT_ACCOUNT,amount:r.amount}])].join("\u0001")).join("\u0002");
-  const T=(st.txns||[]).map(t=>[t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",t.egroup||""].join("\u0001")).join("\u0002");
+  const T=(st.txns||[]).map(t=>[t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",egroupCell(t)].join("\u0001")).join("\u0002");
   return A+"\u0003"+R+"\u0003"+T;
 }
 function sig(st){return hash32(contentString(st||{}));}
@@ -684,7 +721,8 @@ function undo(){
 }
 
 /* ================= ACCOUNTS ================= */
-function findAccount(name){const n=String(name||"").trim().toLowerCase();if(!n)return undefined;return state.accounts.find(a=>a.name.toLowerCase()===n);}
+function findAccount(name){const n=String(name||"").trim().toLowerCase();if(!n)return undefined;
+  return state.accounts.find(a=>a.name.toLowerCase()===n)||state.accounts.find(a=>normText(a.name)===normText(n)&&normText(n)!=="");}
 function canonAccount(name){const a=findAccount(name);return a?a.name:String(name||"").trim();}
 function accountNames(){return state.accounts.map(a=>a.name);}
 function badAccountName(n){
@@ -754,6 +792,47 @@ function tagOfAccount(name){const a=findAccount(name);return a?tagOf(a):"";}
 function payeeOf(t){return String((t&&t.payee)||"").trim();}
 function egroupOf(t){return String((t&&t.egroup)||"").trim()||DEFAULT_EGROUP;}
 function withdrawals(){return state.txns.filter(t=>t.kind==="withdrawal");}
+
+/* ---- split withdrawals ----
+   One check can pay for several expense groups, just as one donation can feed
+   several accounts. A plain withdrawal keeps its group in t.egroup and has no
+   t.splits; a split one has t.splits=[{group,amount},…] (two or more) and an
+   empty t.egroup. Everything that totals by group goes through wSplits(), so a
+   plain withdrawal simply reads as a single split for its whole amount.
+   In the file the ExpenseGroup cell uses the donation format:
+   Utilities:120.00|Office:30.00 — group names may not contain "|" or ":". */
+function groupStore(g){const s=String(g||"").trim();return s.toLowerCase()===DEFAULT_EGROUP.toLowerCase()?"":s;}
+function wSplits(t){
+  if(t&&t.splits&&t.splits.length)return t.splits.map(s=>({group:String(s.group||"").trim()||DEFAULT_EGROUP,amount:+s.amount||0}));
+  return [{group:egroupOf(t),amount:+(t&&t.amount)||0}];
+}
+function isSplit(t){return !!(t&&t.splits&&t.splits.length>1);}
+function inGroup(t,g){const n=String(g||"").toLowerCase();return wSplits(t).some(s=>s.group.toLowerCase()===n);}
+function groupShare(t,g){const n=String(g||"").toLowerCase();return wSplits(t).filter(s=>s.group.toLowerCase()===n).reduce((s,x)=>s+x.amount,0);}
+function groupsText(t){return wSplits(t).map(s=>s.group).join(" ");}
+function egroupCell(t){
+  return isSplit(t)?t.splits.map(s=>`${s.group||DEFAULT_EGROUP}:${(+s.amount||0).toFixed(2)}`).join("|"):(t.egroup||"");
+}
+/* puts a withdrawal's groups in canonical form: repeated groups are combined,
+   and a single remaining group goes back to being a plain withdrawal */
+function setSplits(t,splits){
+  const m=[];
+  (splits||[]).forEach(s=>{
+    const g=groupStore(s.group),a=+s.amount||0;
+    const hit=m.find(x=>x.group.toLowerCase()===g.toLowerCase());
+    if(hit)hit.amount+=a;else m.push({group:g,amount:a});
+  });
+  if(m.length<=1){t.egroup=m.length?m[0].group:"";t.splits=[];}
+  else{t.egroup="";t.splits=m.map(x=>({group:x.group,amount:Math.round(x.amount*100)/100}));}
+  return t;
+}
+/* chips for the group column — every share stays visible; with a group filter
+   on, the shares outside it are dimmed because they are not in the sums */
+function groupChips(t,sel){
+  const n=String(sel||"").toLowerCase();
+  if(!isSplit(t))return `<span class="chip eg">${esc(egroupOf(t))}</span>`;
+  return wSplits(t).map(s=>`<span class="chip eg${n&&s.group.toLowerCase()!==n?" dim":""}">${esc(s.group)} <b>${fmt.format(s.amount)}</b></span>`).join("");
+}
 function payeeList(){
   const out=[];
   withdrawals().forEach(t=>{const p=payeeOf(t);if(p&&!out.some(x=>x.toLowerCase()===p.toLowerCase()))out.push(p);});
@@ -771,7 +850,7 @@ function payeeFilterNames(){
 }
 function egroupNames(){
   const out=[];
-  withdrawals().forEach(t=>{const g=egroupOf(t);if(!out.some(x=>x.toLowerCase()===g.toLowerCase()))out.push(g);});
+  withdrawals().forEach(t=>wSplits(t).forEach(s=>{const g=s.group;if(!out.some(x=>x.toLowerCase()===g.toLowerCase()))out.push(g);}));
   return out.sort((a,b)=>{
     if(a===DEFAULT_EGROUP)return 1;
     if(b===DEFAULT_EGROUP)return -1;
@@ -781,12 +860,12 @@ function egroupNames(){
 function canonPayee(n){
   const s=String(n||"").trim();
   if(!s)return "";
-  return payeeList().find(x=>x.toLowerCase()===s.toLowerCase())||s;
+  return payeeList().find(x=>nameKey(x)===nameKey(s))||s;
 }
 function canonEgroup(n){
   const s=String(n||"").trim();
   if(!s||s.toLowerCase()===DEFAULT_EGROUP.toLowerCase())return "";
-  return egroupNames().find(x=>x.toLowerCase()===s.toLowerCase())||s;
+  return egroupNames().find(x=>normText(x)===normText(s))||s;
 }
 function badGroupName(n){
   n=String(n||"").trim();
@@ -800,32 +879,40 @@ function renamePayeeRefs(oldName,newName){
 function renameEgroupRefs(oldName,newName){
   const o=String(oldName||"").toLowerCase();
   const store=String(newName||"").trim().toLowerCase()===DEFAULT_EGROUP.toLowerCase()?"":String(newName||"").trim();
-  state.txns.forEach(t=>{if(t.kind==="withdrawal"&&egroupOf(t).toLowerCase()===o)t.egroup=store;});
+  state.txns.forEach(t=>{
+    if(t.kind!=="withdrawal")return;
+    if(isSplit(t))setSplits(t,wSplits(t).map(s=>({group:s.group.toLowerCase()===o?store:s.group,amount:s.amount})));
+    else if(egroupOf(t).toLowerCase()===o)t.egroup=store;
+  });
 }
+/* a split withdrawal adds only its share to each group, and counts once per group */
 function egroupTotals(list){
   const m=new Map();
   (list||withdrawals()).forEach(t=>{
-    const g=egroupOf(t);
-    if(!m.has(g))m.set(g,{spent:0,count:0,payees:[]});
-    const o=m.get(g);o.spent+=(+t.amount||0);o.count++;
-    const p=payeeOf(t)||NO_PAYEE;
-    if(!o.payees.some(x=>x.toLowerCase()===p.toLowerCase()))o.payees.push(p);
+    const p=payeeOf(t)||NO_PAYEE,seen=new Set();
+    wSplits(t).forEach(s=>{
+      const g=s.group;
+      if(!m.has(g))m.set(g,{spent:0,count:0,payees:[]});
+      const o=m.get(g);o.spent+=s.amount;
+      if(!seen.has(g)){seen.add(g);o.count++;}
+      if(!o.payees.some(x=>x.toLowerCase()===p.toLowerCase()))o.payees.push(p);
+    });
   });
   return m;
 }
-function payeeTotals(list){
+/* with a group given, each withdrawal counts only the share paid out of that group */
+function payeeTotals(list,group){
   const m=new Map();
   (list||withdrawals()).forEach(t=>{
     const p=payeeOf(t)||NO_PAYEE,k=p.toLowerCase();
     if(!m.has(k))m.set(k,{name:p,spent:0,count:0,groups:[]});
-    const o=m.get(k);o.spent+=(+t.amount||0);o.count++;
-    const g=egroupOf(t);if(!o.groups.includes(g))o.groups.push(g);
+    const o=m.get(k);o.spent+=group?groupShare(t,group):(+t.amount||0);o.count++;
+    wSplits(t).forEach(s=>{if(!o.groups.includes(s.group))o.groups.push(s.group);});
   });
   return [...m.values()].sort((a,b)=>b.spent-a.spent||a.name.localeCompare(b.name));
 }
 function payeesInGroup(g){
-  const n=String(g||"").toLowerCase();
-  return payeeTotals(withdrawals().filter(t=>egroupOf(t).toLowerCase()===n));
+  return payeeTotals(withdrawals().filter(t=>inGroup(t,g)),g);
 }
 
 /* ================= LEDGER ================= */
@@ -920,9 +1007,13 @@ function parseTxnGrid(grid){
     const allocs=parseAllocs(r[4]);
     let amount=parseAmount(r[5]);
     if(!amount&&allocs.length)amount=allocs.reduce((s,a)=>s+a.amount,0);
+    /* a split withdrawal's ExpenseGroup cell is  Group:12.50|Other:7.50  */
+    const gcell=(r[9]||"").trim();
+    const splits=gcell.includes(":")?parseAllocs(gcell).map(a=>({group:a.account,amount:a.amount})):[];
+    if(!amount&&splits.length)amount=splits.reduce((s,a)=>s+a.amount,0);
     out.push({id:(r[0]||"").trim()||uid(),date:normalizeDate(r[1]),kind,from:(r[3]||"").trim(),
               allocs,amount,ref:(r[6]||"").trim(),notes:(r[7]||"").trim(),
-              payee:(r[8]||"").trim(),egroup:(r[9]||"").trim()});
+              payee:(r[8]||"").trim(),egroup:splits.length?"":gcell,splits});
   }
   return out;
 }
@@ -962,7 +1053,9 @@ function normalizeState(s){
     t.payee=String(t.payee||"").trim();
     t.egroup=String(t.egroup||"").trim();
     if(t.egroup.toLowerCase()===DEFAULT_EGROUP.toLowerCase())t.egroup="";
-    if(t.kind!=="withdrawal"){t.payee="";t.egroup="";}
+    t.splits=Array.isArray(t.splits)?t.splits:[];
+    if(t.kind!=="withdrawal"){t.payee="";t.egroup="";t.splits=[];}
+    else if(t.splits.length)setSplits(t,t.splits);
   });
   if(s.savedSig===undefined)s.savedSig=null;
   s.savedAt=s.savedAt||"";s.savedTo=s.savedTo||"";
@@ -1036,7 +1129,7 @@ function applyFilter(){
     if(f.to&&r.date&&r.date>f.to)return false;
     if(f.type&&r.type!==f.type)return false;
     if(f.acct&&!(r.allocs||[]).some(a=>acctFilterMatch(f.acct,a.account)))return false;
-    if(f.name&&!displayName(r).toLowerCase().includes(f.name))return false;
+    if(f.name&&!looseMatch(displayName(r),f.name))return false;
     if(f.min!=null&&r.amount<f.min)return false;
     if(f.max!=null&&r.amount>f.max)return false;
     return true;
@@ -1049,7 +1142,7 @@ function applyFilter(){
 function currentTFilter(){
   const range=el("fTRange").value;let from="",to="";
   if(range==="custom"){from=el("fTFrom").value;to=el("fTTo").value;}else if(range!=="all"){from=monthsAgo(parseInt(range));}
-  return{from,to,kind:el("fKind").value,acct:el("fAcct").value,text:el("fTText").value.trim().toLowerCase(),
+  return{from,to,kind:el("fKind").value,acct:el("fAcct").value,group:el("fTGroup").value,text:el("fTText").value.trim(),
          min:el("fTMin").value!==""?parseFloat(el("fTMin").value):null,max:el("fTMax").value!==""?parseFloat(el("fTMax").value):null};
 }
 function applyTFilter(){
@@ -1062,7 +1155,9 @@ function applyTFilter(){
       const hit=(t.from&&acctFilterMatch(f.acct,t.from))||(t.allocs||[]).some(a=>acctFilterMatch(f.acct,a.account));
       if(!hit)return false;
     }
-    if(f.text){const blob=[t.notes,t.ref,t.who,t.from,t.payee||"",t.kind==="withdrawal"?egroupOf(t):"",(t.allocs||[]).map(a=>a.account).join(" ")].join(" ").toLowerCase();if(!blob.includes(f.text))return false;}
+    /* a split withdrawal stays listed whole when any of its groups matches */
+    if(f.group&&!(t.kind==="withdrawal"&&inGroup(t,f.group)))return false;
+    if(f.text){const blob=[t.notes,t.ref,t.who,t.from,t.payee||"",t.kind==="withdrawal"?groupsText(t):"",(t.allocs||[]).map(a=>a.account).join(" ")].join(" ");if(!looseMatch(blob,f.text))return false;}
     if(f.min!=null&&t.amount<f.min)return false;
     if(f.max!=null&&t.amount>f.max)return false;
     return true;
@@ -1237,13 +1332,16 @@ function renderAccounts(){
 }
 
 function renderTxns(){
+  syncSimpleSelect("fTGroup","All expense groups",egroupNames());
   const rows=applyTFilter();
   const tb=el("tTbody");tb.innerHTML="";
   el("tEmpty").classList.toggle("hidden",rows.length>0);
   let inn=0,out=0,moved=0;
-  /* with an account filter, a split entry only counts the share that touched the selection */
-  const sel=currentTFilter().acct;
+  /* with an account filter, a split entry only counts the share that touched the selection;
+     with an expense group filter, a split withdrawal only counts that group's share */
+  const{acct:sel,group:gsel}=currentTFilter();
   const share=t=>{
+    if(gsel&&t.kind==="withdrawal")return groupShare(t,gsel);
     if(!sel)return t.amount;
     if(t.from&&acctFilterMatch(sel,t.from))return t.amount;
     return (t.allocs||[]).filter(a=>acctFilterMatch(sel,a.account)).reduce((s,a)=>s+(+a.amount||0),0);
@@ -1259,7 +1357,7 @@ function renderTxns(){
       ? t.allocs.map(a=>`<span class="chip">${esc(a.account)} <b>${fmt.format(a.amount)}</b></span>`).join("")
       : (t.kind==="withdrawal"
           ? (payeeOf(t)?`<span class="chip payee">${esc(payeeOf(t))}</span>`:'<span class="muted">— external —</span>')
-            +`<span class="chip eg">${esc(egroupOf(t))}</span>`
+            +groupChips(t,gsel)
           : '<span class="muted">— external —</span>');
     const del=t.kind==="donation"
       ? `<span class="muted" style="font-size:11.5px" title="Delete this on the Donations page">from donation</span>`
@@ -1290,7 +1388,7 @@ function currentXFilter(){
   const range=el("fXRange").value;let from="",to="";
   if(range==="custom"){from=el("fXFrom").value;to=el("fXTo").value;}else if(range!=="all"){from=monthsAgo(parseInt(range));}
   return{from,to,group:el("fXGroup").value,payee:el("fXPayee").value,acct:el("fXAcct").value,
-         text:el("fXText").value.trim().toLowerCase(),
+         text:el("fXText").value.trim(),
          min:el("fXMin").value!==""?parseFloat(el("fXMin").value):null,
          max:el("fXMax").value!==""?parseFloat(el("fXMax").value):null};
 }
@@ -1299,10 +1397,10 @@ function applyXFilter(){
   let rows=withdrawals().filter(t=>{
     if(f.from&&t.date&&t.date<f.from)return false;
     if(f.to&&t.date&&t.date>f.to)return false;
-    if(f.group&&egroupOf(t)!==f.group)return false;
+    if(f.group&&!inGroup(t,f.group))return false;
     if(f.payee&&(payeeOf(t)||NO_PAYEE)!==f.payee)return false;
     if(f.acct&&!acctFilterMatch(f.acct,t.from))return false;
-    if(f.text){const blob=[t.notes,t.ref,t.payee,t.from,egroupOf(t)].join(" ").toLowerCase();if(!blob.includes(f.text))return false;}
+    if(f.text){const blob=[t.notes,t.ref,t.payee,t.from,groupsText(t)].join(" ");if(!looseMatch(blob,f.text))return false;}
     if(f.min!=null&&t.amount<f.min)return false;
     if(f.max!=null&&t.amount>f.max)return false;
     return true;
@@ -1311,7 +1409,7 @@ function applyXFilter(){
     let A,B;
     if(xSortKey==="amount"){A=a.amount;B=b.amount;}
     else if(xSortKey==="payee"){A=(payeeOf(a)||NO_PAYEE).toLowerCase();B=(payeeOf(b)||NO_PAYEE).toLowerCase();}
-    else if(xSortKey==="group"){A=egroupOf(a).toLowerCase();B=egroupOf(b).toLowerCase();}
+    else if(xSortKey==="group"){A=groupsText(a).toLowerCase();B=groupsText(b).toLowerCase();}
     else if(xSortKey==="from"){A=(a.from||"").toLowerCase();B=(b.from||"").toLowerCase();}
     else{A=a.date||"";B=b.date||"";}
     return (A<B?-1:A>B?1:0)*xSortDir;
@@ -1401,14 +1499,17 @@ function renderWithdrawals(){
   const tb=el("xTbody");tb.innerHTML="";
   el("xEmpty").classList.toggle("hidden",rows.length>0);
   let out=0;const ps=new Set(),gs=new Set();
+  /* with a group filter, a split withdrawal stays listed whole but only its share
+     in that group is added to the totals */
+  const gsel=currentXFilter().group;
   for(const t of rows){
-    out+=t.amount;
+    out+=gsel?groupShare(t,gsel):t.amount;
     ps.add((payeeOf(t)||NO_PAYEE).toLowerCase());
-    gs.add(egroupOf(t).toLowerCase());
+    wSplits(t).forEach(s=>{if(!gsel||s.group.toLowerCase()===gsel.toLowerCase())gs.add(s.group.toLowerCase());});
     const tr=document.createElement("tr");
     tr.innerHTML=`<td>${t.date||"—"}</td>
       <td>${payeeOf(t)?esc(payeeOf(t)):'<span class="muted">— not recorded —</span>'}</td>
-      <td><span class="chip eg">${esc(egroupOf(t))}</span></td>
+      <td class="tocell">${groupChips(t,gsel)}</td>
       <td>${t.from?esc(t.from):'<span class="muted">—</span>'}</td>
       <td class="amt">${fmt.format(t.amount)}</td>
       <td>${esc(t.ref||"")}</td><td class="notes">${esc(t.notes||"")}</td>
@@ -1553,22 +1654,27 @@ function expenseReportData(){
   const{from,to}=reportRange();
   const groups=new Map();
   const gget=g=>{if(!groups.has(g))groups.set(g,{name:g,before:0,spend:0,count:0,payees:new Map()});return groups.get(g);};
+  let payments=0;   /* a split check is one payment overall, though it appears in each of its groups */
   withdrawals().forEach(t=>{
-    const when=t.date||"",amt=+t.amount||0;
+    const when=t.date||"";
     if(to&&when&&when>to)return;
-    const g=gget(egroupOf(t));
+    const before=!!(from&&when<from);
+    if(!before)payments++;
     const pname=payeeOf(t)||NO_PAYEE,pk=pname.toLowerCase();
-    if(!g.payees.has(pk))g.payees.set(pk,{name:pname,before:0,spend:0,count:0});
-    const p=g.payees.get(pk);
-    if(from&&when<from){g.before+=amt;p.before+=amt;return;}
-    g.spend+=amt;g.count++;p.spend+=amt;p.count++;
+    wSplits(t).forEach(s=>{
+      const g=gget(s.group),amt=s.amount;
+      if(!g.payees.has(pk))g.payees.set(pk,{name:pname,before:0,spend:0,count:0});
+      const p=g.payees.get(pk);
+      if(before){g.before+=amt;p.before+=amt;return;}
+      g.spend+=amt;g.count++;p.spend+=amt;p.count++;
+    });
   });
   const cats=[...groups.values()].map(g=>({
     name:g.name,before:g.before,spend:g.spend,count:g.count,total:g.before+g.spend,
     payees:[...g.payees.values()].map(p=>({name:p.name,before:p.before,spend:p.spend,count:p.count,total:p.before+p.spend}))
              .sort((a,b)=>b.spend-a.spend||a.name.localeCompare(b.name))
   })).sort((a,b)=>b.spend-a.spend||a.name.localeCompare(b.name));
-  const grand=cats.reduce((o,c)=>({before:o.before+c.before,spend:o.spend+c.spend,count:o.count+c.count}),{before:0,spend:0,count:0});
+  const grand=cats.reduce((o,c)=>({before:o.before+c.before,spend:o.spend+c.spend,count:payments}),{before:0,spend:0,count:payments});
   grand.total=grand.before+grand.spend;
   const share=v=>grand.spend?v/grand.spend:0;
   cats.forEach(c=>{c.share=share(c.spend);c.payees.forEach(p=>p.share=share(p.spend));});
@@ -1828,8 +1934,12 @@ function sankeyData(){
   const eget=n=>{if(!exp.has(n))exp.set(n,{name:n,value:0,count:0});return exp.get(n);};
   withdrawals().forEach(t=>{
     if(!inWin(t.date||""))return;
-    const amt=+t.amount||0;if(amt<=0)return;
-    const e=eget(egroupOf(t));e.value+=amt;e.count++;
+    const seen=new Set();
+    wSplits(t).forEach(s=>{
+      if(s.amount<=0)return;
+      const e=eget(s.group);e.value+=s.amount;
+      if(!seen.has(s.group)){seen.add(s.group);e.count++;}
+    });
   });
 
   const roll=(m,label)=>{
@@ -2002,19 +2112,33 @@ function renderSankey(){
 function attachAC(inp,list,itemsFn,onPick,newLabel){
   let active=-1,shown=[];
   function refresh(){
-    const q=inp.value.trim().toLowerCase();
+    const q=inp.value.trim();
     const items=itemsFn();
-    shown=(q?items.filter(x=>x.toLowerCase().includes(q)):items).slice(0,50);
-    const exact=items.some(x=>x.toLowerCase()===q);
+    /* forgiving match (capitals, accents, punctuation, word order), best matches first */
+    if(q){
+      shown=items.map((x,i)=>({x,i,m:looseMatch(x,q)})).filter(o=>o.m)
+        .map(o=>({x:o.x,i:o.i,r:looseRank(o.x,q)})).sort((a,b)=>a.r-b.r||a.i-b.i).map(o=>o.x).slice(0,50);
+    } else shown=items.slice(0,50);
+    const exact=items.some(x=>nameKey(x)===nameKey(q));
     let html=shown.map((x,i)=>`<div class="ac-item" data-i="${i}">${esc(x)}</div>`).join("");
-    if(q&&!exact)html+=`<div class="ac-item ac-new" data-new="1">+ ${newLabel||"New account"} “${esc(inp.value.trim())}”</div>`;
-    list.innerHTML=html;active=-1;list.classList.toggle("hidden",!html);
+    if(q&&!exact)html+=`<div class="ac-item ac-new" data-new="1">+ ${newLabel||"New account"} “${esc(q)}”</div>`;
+    list.innerHTML=html;list.classList.toggle("hidden",!html);
+    /* with something typed, the best match is highlighted so Enter takes it */
+    active=q&&shown.length?0:-1;
+    list.querySelectorAll(".ac-item").forEach((it,i)=>it.classList.toggle("active",i===active));
     list.querySelectorAll("[data-i]").forEach(it=>it.onmousedown=e=>{
       e.preventDefault();inp.value=shown[+it.dataset.i];list.classList.add("hidden");if(onPick)onPick(inp.value);
     });
     const nw=list.querySelector("[data-new]");if(nw)nw.onmousedown=e=>{e.preventDefault();list.classList.add("hidden");inp.focus();};
   }
   inp.addEventListener("input",()=>{refresh();if(onPick)onPick(inp.value);});
+  /* typing an existing name in a different form ("john smith") snaps to the stored
+     spelling ("Smith, John") when the box is left, so it is not taken as someone new */
+  inp.addEventListener("blur",()=>{
+    const q=inp.value.trim();if(!q)return;
+    const hit=itemsFn().find(x=>nameKey(x)===nameKey(q));
+    if(hit&&hit!==inp.value){inp.value=hit;if(onPick)onPick(hit);}
+  });
   inp.addEventListener("focus",refresh);
   inp.addEventListener("keydown",e=>{
     const items=list.querySelectorAll(".ac-item");
@@ -2029,17 +2153,20 @@ function attachAC(inp,list,itemsFn,onPick,newLabel){
 document.addEventListener("click",e=>{if(!e.target.closest(".ac"))document.querySelectorAll(".ac-list").forEach(l=>l.classList.add("hidden"));},{capture:true});
 
 /* ================= ALLOCATION ROWS ================= */
-function addAllocRow(wrap,account,amount){
+/* opts lets the same row pick expense groups instead of accounts:
+   {items:()=>[…names], placeholder, newLabel} */
+function addAllocRow(wrap,account,amount,opts){
+  opts=opts||{};
   const row=document.createElement("div");
   row.className="allocrow";
-  row.innerHTML=`<div class="ac"><input type="text" class="allocAcc" autocomplete="off" placeholder="Account"><div class="ac-list hidden"></div></div>
+  row.innerHTML=`<div class="ac"><input type="text" class="allocAcc" autocomplete="off" placeholder="${esc(opts.placeholder||"Account")}"><div class="ac-list hidden"></div></div>
     <input type="number" class="allocAmt" step="0.01" min="0" placeholder="0.00">
     <button type="button" class="rmAlloc" title="Remove">✕</button>`;
   wrap.appendChild(row);
   const inp=row.querySelector(".allocAcc"),lst=row.querySelector(".ac-list"),amt=row.querySelector(".allocAmt");
   inp.value=account||"";if(amount!=null&&amount!=="")amt.value=amount;
   const fire=()=>wrap.dispatchEvent(new Event("allocchange"));
-  attachAC(inp,lst,accountNames,fire);
+  attachAC(inp,lst,opts.items||accountNames,fire,opts.newLabel);
   amt.addEventListener("input",fire);
   row.querySelector(".rmAlloc").onclick=()=>{
     if(wrap.querySelectorAll(".allocrow").length<=1){inp.value="";amt.value="";fire();return;}
@@ -2065,6 +2192,30 @@ function validateAllocs(allocs,expected){
   if(expected!=null&&Math.abs(allocs.reduce((s,a)=>s+a.amount,0)-expected)>0.005)
     return "The amounts directed to accounts must add up to the total.";
   return "";
+}
+/* the expense-group version: a single line may be left blank (it goes to the
+   default group), but once a payment is split every line needs its group */
+function validateSplits(splits,expected){
+  if(!splits.length)return "";
+  if(splits.length>1){
+    for(const s of splits){
+      if(!s.group)return "Please choose an expense group for every line — one is still empty.";
+      if(!(s.amount>0))return `Enter an amount greater than zero for “${s.group}”.`;
+    }
+  }
+  for(const s of splits){const b=badGroupName(s.group);if(b)return b;}
+  const names=splits.map(s=>(groupStore(s.group)||DEFAULT_EGROUP).toLowerCase());
+  if(new Set(names).size!==names.length)return "The same expense group is listed twice.";
+  if(splits.length>1&&Math.abs(splits.reduce((s,a)=>s+a.amount,0)-expected)>0.005)
+    return "The amounts split across expense groups must add up to the total.";
+  return "";
+}
+/* the "Allocated $x of $y" line under a split, shared by donations and withdrawals */
+function showAllocSum(sumEl,total,sum){
+  const rem=total-sum;
+  if(total<=0){sumEl.textContent="";sumEl.className="allocsum";return;}
+  if(Math.abs(rem)<0.005){sumEl.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} ✓`;sumEl.className="allocsum ok";}
+  else{sumEl.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} — ${rem>0?fmt.format(rem)+" left":fmt.format(-rem)+" over"}`;sumEl.className="allocsum bad";}
 }
 
 /* ================= NEW DONATION ================= */
@@ -2092,20 +2243,14 @@ function openDonationModal(){
   const inp=el("dName"),list=el("acList"),orgBox=el("dOrg"),wrap=el("dAllocs");
   const refreshDonor=attachAC(inp,list,
     ()=>donors.map(displayName),
-    v=>{const d=donors.find(x=>displayName(x).toLowerCase()===v.trim().toLowerCase());if(d)orgBox.checked=!!d.org;},
+    v=>{const d=donors.find(x=>nameKey(displayName(x))===nameKey(v));if(d)orgBox.checked=!!d.org;},
     "Add new donor");
   orgBox.addEventListener("change",refreshDonor);
 
   /* Deliberately blank — a pre-picked account is too easy to skip past,
      and validateAllocs() refuses to save until one is chosen. */
   addAllocRow(wrap,"","");
-  function showSum(){
-    const total=parseFloat(el("dAmt").value)||0;
-    const sum=allocTotal(wrap),rem=total-sum,s=el("dAllocSum");
-    if(total<=0){s.textContent="";s.className="allocsum";return;}
-    if(Math.abs(rem)<0.005){s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} ✓`;s.className="allocsum ok";}
-    else{s.textContent=`Allocated ${fmt.format(sum)} of ${fmt.format(total)} — ${rem>0?fmt.format(rem)+" left":fmt.format(-rem)+" over"}`;s.className="allocsum bad";}
-  }
+  function showSum(){showAllocSum(el("dAllocSum"),parseFloat(el("dAmt").value)||0,allocTotal(wrap));}
   function mirrorSingle(){
     const total=parseFloat(el("dAmt").value)||0;
     const rows=wrap.querySelectorAll(".allocrow");
@@ -2130,7 +2275,7 @@ function openDonationModal(){
     const bad=validateAllocs(allocs,amount);
     if(bad){el("dErr").textContent=bad;return;}
     el("dErr").textContent="";
-    const existing=donors.find(d=>displayName(d).toLowerCase()===raw.toLowerCase());
+    const existing=donors.find(d=>nameKey(displayName(d))===nameKey(raw));
     const isOrg=orgBox.checked||(existing&&existing.org);
     let last,first;
     if(isOrg){last=raw;first="";}else{[last,first]=splitName(raw);}
@@ -2270,16 +2415,20 @@ function openTxnModal(presetKind){
     <div class="mhead">New transaction</div>
     <div class="mbody">
       <div><label>What happened?</label><select id="tKind">
-        <option value="transfer">Transfer — move money between accounts</option>
         <option value="withdrawal">Withdrawal — money leaves an account (check, bill…)</option>
+        <option value="transfer">Transfer — move money between accounts</option>
         <option value="deposit">Deposit — add money straight into an account</option>
       </select></div>
       <div id="tFromWrap" class="ac"><label>From account</label><input type="text" id="tFrom" autocomplete="off" placeholder="Account"><div class="ac-list hidden" id="tFromList"></div><div class="hint" id="tFromBal"></div></div>
       <div id="tPayeeWrap" class="ac hidden"><label>Paid to (payee)</label><input type="text" id="tPayee" autocomplete="off" placeholder="Who received the money?"><div class="ac-list hidden" id="tPayeeList"></div>
         <div class="hint">Start typing to pick someone you have paid before, or type a new name to add them to your payee list.</div></div>
-      <div id="tGroupWrap" class="ac hidden"><label>Expense group</label><input type="text" id="tGroup" autocomplete="off" placeholder="e.g. Utilities"><div class="ac-list hidden" id="tGroupList"></div>
-        <div class="hint">Groups withdrawals together for reporting. Type a name that doesn’t exist yet to create it. Left blank, it goes to “${DEFAULT_EGROUP}”.</div></div>
       <div id="tAmtWrap" class="hidden"><label>Amount ($)</label><input type="number" id="tAmt" step="0.01" min="0" placeholder="0.00"></div>
+      <div id="tGroupWrap" class="hidden">
+        <label>Expense group</label>
+        <div id="tGroups" class="allocs"></div>
+        <div class="allocfoot"><button type="button" id="tAddGroup">+ Split across another expense group</button><span class="allocsum" id="tGroupSum"></span></div>
+        <div class="hint">One check covering several kinds of expense? Split it here — it stays one withdrawal. Type a name that doesn’t exist yet to create a group. Left blank, it goes to “${DEFAULT_EGROUP}”.</div>
+      </div>
       <div id="tToWrap">
         <label id="tToLabel">To accounts</label>
         <div id="tAllocs" class="allocs"></div>
@@ -2296,8 +2445,37 @@ function openTxnModal(presetKind){
   addAllocRow(wrap,"","");
   attachAC(fromInp,el("tFromList"),accountNames,()=>showFromBal());
   attachAC(el("tPayee"),el("tPayeeList"),payeeList,null,"Add new payee");
-  attachAC(el("tGroup"),el("tGroupList"),egroupNames,null,"New expense group");
-  if(egGroup&&egGroup!==DEFAULT_EGROUP)el("tGroup").value=egGroup;
+
+  /* expense-group split rows — the withdrawal twin of a donation's account rows */
+  const gwrap=el("tGroups");
+  const GROUP_ROW={items:egroupNames,placeholder:"Expense group, e.g. Utilities",newLabel:"New expense group"};
+  addAllocRow(gwrap,egGroup&&egGroup!==DEFAULT_EGROUP?egGroup:"","",GROUP_ROW);
+  const gRows=()=>gwrap.querySelectorAll(".allocrow");
+  function groupSum(){
+    const total=parseFloat(el("tAmt").value)||0,s=el("tGroupSum");
+    if(gRows().length<2){s.textContent="";s.className="allocsum";return;}
+    showAllocSum(s,total,allocTotal(gwrap));
+  }
+  /* while there is a single line it simply carries the whole amount */
+  function mirrorGroup(){
+    const total=parseFloat(el("tAmt").value)||0,rows=gRows();
+    if(rows.length===1)rows[0].querySelector(".allocAmt").value=total>0?total.toFixed(2):"";
+    groupSum();
+  }
+  /* after a line is removed, a lone remaining line takes the whole amount again */
+  gwrap.addEventListener("allocchange",()=>{
+    const rows=gRows();
+    if(rows.length===1&&document.activeElement!==rows[0].querySelector(".allocAmt"))mirrorGroup();
+    else groupSum();
+  });
+  el("tAmt").addEventListener("input",mirrorGroup);
+  el("tAddGroup").onclick=()=>{
+    const rem=(parseFloat(el("tAmt").value)||0)-allocTotal(gwrap);
+    addAllocRow(gwrap,"",rem>0.005?rem.toFixed(2):"",GROUP_ROW);
+    groupSum();
+    gwrap.lastElementChild.querySelector(".allocAcc").focus();
+  };
+  mirrorGroup();
   function showFromBal(){
     const a=findAccount(fromInp.value);
     el("tFromBal").textContent=a?`${tagOf(a)} · current balance ${fmt.format(balanceOf(a.name))}`:"";
@@ -2325,14 +2503,17 @@ function openTxnModal(presetKind){
     const kind=el("tKind").value,date=el("tDate").value||today();
     const ref=el("tRef").value.trim(),notes=el("tNotes").value.trim();
     const from=fromInp.value.trim();
-    const payee=el("tPayee").value.trim(),groupRaw=el("tGroup").value.trim();
-    let allocs=[],amount=0,err="";
+    const payee=el("tPayee").value.trim();
+    let allocs=[],amount=0,err="",splits=[];
     if(kind==="withdrawal"){
       amount=parseFloat(el("tAmt").value);
+      splits=readAllocs(gwrap).map(a=>({group:a.account,amount:a.amount}));
+      /* a single line always carries the whole amount, whatever its box says */
+      if(splits.length<=1)splits=[{group:splits.length?splits[0].group:"",amount:isNaN(amount)?0:amount}];
       if(!from)err="Which account is the money coming out of?";
       else if(isNaN(amount)||amount<=0)err="Please enter a valid amount.";
       else if(!payee)err="Who was this paid to? Enter a payee so the payment can be tracked.";
-      else err=badGroupName(groupRaw);
+      else err=validateSplits(splits,amount);
     }else{
       allocs=readAllocs(wrap);
       err=validateAllocs(allocs,null);
@@ -2345,13 +2526,15 @@ function openTxnModal(presetKind){
     if(err){el("tErr").textContent=err;return;}
     el("tErr").textContent="";
     const names=[...allocs.map(a=>a.account)];if(kind!=="deposit")names.push(from);
-    const knownPayee=payeeList().some(p=>p.toLowerCase()===payee.toLowerCase());
+    const knownPayee=payeeList().some(p=>nameKey(p)===nameKey(payee));
     ensureAccountsThen(names,()=>{
       const rec={id:uid(),date,kind,from:kind==="deposit"?"":canonAccount(from),
                  allocs:allocs.map(a=>({account:canonAccount(a.account),amount:a.amount})),amount,ref,notes,
-                 payee:kind==="withdrawal"?canonPayee(payee):"",
-                 egroup:kind==="withdrawal"?canonEgroup(groupRaw):""};
-      const commit=()=>{pushUndo("added a "+TXN_KINDS[kind].toLowerCase());state.txns.push(rec);persist();renderAll();close(ov);toast(TXN_KINDS[kind]+" recorded.");};
+                 payee:kind==="withdrawal"?canonPayee(payee):"",egroup:"",splits:[]};
+      if(kind==="withdrawal")setSplits(rec,splits.map(s=>({group:canonEgroup(s.group),amount:s.amount})));
+      const n=rec.splits.length;
+      const commit=()=>{pushUndo("added a "+TXN_KINDS[kind].toLowerCase());state.txns.push(rec);persist();renderAll();close(ov);
+        toast(TXN_KINDS[kind]+" recorded"+(n>1?`, split across ${n} expense groups`:"")+".");};
       const proceed=()=>{
         if(rec.from){
           const after=balanceOf(rec.from)-amount;
@@ -2393,7 +2576,7 @@ function openRenamePayee(old){
 }
 function openRenameGroup(){
   const old=egGroup;if(!old)return;
-  const n=withdrawals().filter(t=>egroupOf(t)===old).length;
+  const n=withdrawals().filter(t=>inGroup(t,old)).length;
   const ov=modal(`
     <div class="mhead">Rename expense group</div>
     <div class="mbody">
@@ -2422,6 +2605,129 @@ function confirmOverdraft(acct,after,onYes){
   el("oYes").onclick=()=>{close(ov);onYes();};
 }
 
+/* ================= COMBINE SPLIT CHECKS ================= */
+/* Before withdrawals could be split, one check covering several expense groups
+   had to be typed in as several withdrawals. These find such sets and offer to
+   fold each into one split withdrawal. Nothing changes without a yes, balances
+   and totals come out the same, and sets the user keeps apart are remembered
+   (per browser) so they are not suggested again.
+     Checks — the same check number from the same account, wherever they sit.
+     Wires  — reference blank or just "wire": entries made back to back with the
+              same date, account and payee. */
+const MERGE_KEY="donation_ledger_merge_declined_v1";
+function readDeclined(){try{const a=JSON.parse(localStorage.getItem(MERGE_KEY)||"[]");return Array.isArray(a)?a:[];}catch(e){return[];}}
+function addDeclined(sigs){if(!sigs.length)return;const a=readDeclined().concat(sigs);lsSet(MERGE_KEY,JSON.stringify(a.slice(-1000)));}
+function isWireRef(ref){const r=String(ref||"").trim();return !r||(/wire/i.test(r)&&!/\d/.test(r));}
+/* "1234", "#1234", "Check 1234", "ck no. 01234" are all check 1234 */
+function refKey(ref){
+  const r=String(ref||"").trim();
+  const m=r.match(/^(?:check|chk|ck)?\s*(?:no\.?|#)?\s*0*(\d+)$/i);
+  return m?"#"+m[1]:normText(r);
+}
+function findMergeSets(){
+  const sets=[];
+  const ok=t=>t.kind==="withdrawal"&&(+t.amount||0)>0;
+  const byRef=new Map();
+  state.txns.forEach(t=>{
+    if(!ok(t)||isWireRef(t.ref)||!/\d/.test(t.ref))return;
+    const k=refKey(t.ref)+"\u0001"+normText(t.from);
+    if(!byRef.has(k))byRef.set(k,[]);
+    byRef.get(k).push(t);
+  });
+  byRef.forEach(list=>{if(list.length>1)sets.push({kind:"check",list});});
+  let run=[];
+  const flush=()=>{if(run.length>1)sets.push({kind:"wire",list:run});run=[];};
+  state.txns.forEach(t=>{
+    if(!ok(t)||!isWireRef(t.ref)){flush();return;}
+    const p=run[run.length-1];
+    if(p&&p.date===t.date&&normText(p.from)===normText(t.from)&&nameKey(payeeOf(p))===nameKey(payeeOf(t)))run.push(t);
+    else{flush();run=[t];}
+  });
+  flush();
+  const pos=new Map(state.txns.map((t,i)=>[t.id,i]));
+  sets.forEach(s=>{
+    s.sig=s.list.map(t=>t.id).sort().join(",");
+    s.merged=mergedOf(s.list);
+    /* something looks off — let the user decide rather than ticking it for them */
+    const ds=s.list.map(t=>t.date).filter(Boolean).sort();
+    const far=ds.length>1&&(new Date(ds[ds.length-1])-new Date(ds[0]))/864e5>31;
+    const payees=new Set(s.list.map(t=>nameKey(payeeOf(t))).filter(Boolean));
+    s.warn=[far?"dates more than a month apart":"",payees.size>1?"different payees":""].filter(Boolean).join(" and ");
+  });
+  return sets.sort((a,b)=>pos.get(a.list[0].id)-pos.get(b.list[0].id));
+}
+/* the one withdrawal a set becomes — the earliest date, the first entry's id and
+   account, every group's share, and nothing from the notes lost */
+function mergedOf(list){
+  const first=list[0];
+  const uniq=a=>a.filter((x,i)=>x&&a.findIndex(y=>y&&y.toLowerCase()===x.toLowerCase())===i);
+  const dates=list.map(t=>t.date).filter(Boolean).sort();
+  const payees=uniq(list.map(payeeOf));
+  let notes=uniq(list.map(t=>String(t.notes||"").trim())).join("; ");
+  if(payees.length>1)notes=(notes?notes+"; ":"")+"Payees: "+payees.join(", ");
+  const ref=(list.find(t=>!isWireRef(t.ref))||list.find(t=>t.ref)||first).ref||"";
+  const amount=Math.round(list.reduce((s,t)=>s+(+t.amount||0),0)*100)/100;
+  const m={id:first.id,date:dates[0]||first.date,kind:"withdrawal",from:first.from,allocs:[],amount,
+           ref,notes,payee:payees[0]||"",egroup:"",splits:[]};
+  return setSplits(m,list.flatMap(t=>wSplits(t)));
+}
+function applyMerge(set){
+  const ids=new Set(set.list.map(t=>t.id));
+  const at=state.txns.findIndex(t=>t.id===set.list[0].id);
+  state.txns=state.txns.filter((t,i)=>i===at||!ids.has(t.id));
+  state.txns[state.txns.findIndex(t=>t.id===set.list[0].id)]=set.merged;
+}
+function promptMerges(manual){
+  if(!manual&&document.querySelector(".overlay"))return;
+  const declined=new Set(manual?[]:readDeclined());
+  const sets=findMergeSets().filter(s=>!declined.has(s.sig));
+  if(!sets.length){if(manual)toast("No split checks or wires to combine.");return;}
+  const label=s=>{
+    const r=String(s.merged.ref||"").trim();
+    if(/^#?\s*\d+$/.test(r))return "Check #"+esc(r.replace(/^#\s*/,""));
+    return r?esc(r):"Wire / no reference";
+  };
+  const items=sets.map((s,i)=>`<div class="mg">
+      <label class="mgtop"><input type="checkbox" data-mg="${i}" ${s.warn?"":"checked"}>
+        <span><b>${label(s)}</b> · ${esc(s.merged.from||"—")} → ${esc(s.merged.payee||NO_PAYEE)} · <b>${fmt.format(s.merged.amount)}</b>
+        <span class="muted">· ${s.list.length} entries</span></span></label>
+      ${s.warn?`<div class="mgwarn">⚠ Check this one — ${esc(s.warn)}.</div>`:""}
+      <div class="tablewrap"><table class="mgtab">${s.list.map(t=>`<tr><td>${esc(t.date||"—")}</td><td>${esc(payeeOf(t)||NO_PAYEE)}</td>
+        <td>${wSplits(t).map(x=>esc(x.group)).join(", ")}</td><td class="amt">${fmt.format(t.amount)}</td>
+        <td class="notes">${esc(t.notes||"")}</td></tr>`).join("")}</table></div>
+      <div class="mgres"><span class="muted">Becomes one withdrawal on ${esc(s.merged.date||"—")}:</span> ${groupChips(s.merged)}</div>
+    </div>`).join("");
+  const ov=modal(`<div class="mhead">Combine split checks into single withdrawals?</div>
+    <div class="mbody">
+      <p>These look like one check or wire that was entered several times to cover different expense groups.
+         Now that a withdrawal can be split across groups, each set can become a single withdrawal. Balances and totals stay the same.</p>
+      <div class="mgbar"><button class="mini" id="mgAll">Tick all</button><button class="mini" id="mgNone">Untick all</button>
+        <span class="muted" id="mgCount"></span></div>
+      <div class="mglist">${items}</div>
+      <div class="hint">Unticked sets are left exactly as they are and won’t be suggested again in this browser.
+        “Combine split checks” on the Expenses page shows every candidate again. A backup is filed before anything changes.</div>
+    </div>
+    <div class="mfoot"><button id="mgLater">Ask me later</button><button class="primary" id="mgGo">Combine ticked</button></div>`,"wide");
+  const boxes=[...ov.querySelectorAll("[data-mg]")];
+  const count=()=>{const n=boxes.filter(b=>b.checked).length;el("mgCount").textContent=`${n} of ${sets.length} ticked`;el("mgGo").textContent=n?`Combine ${n} ticked`:"Keep all as they are";};
+  boxes.forEach(b=>b.onchange=count);count();
+  el("mgAll").onclick=()=>{boxes.forEach(b=>b.checked=true);count();};
+  el("mgNone").onclick=()=>{boxes.forEach(b=>b.checked=false);count();};
+  el("mgLater").onclick=()=>close(ov);
+  el("mgGo").onclick=()=>{
+    const pick=sets.filter((s,i)=>boxes[i].checked),keep=sets.filter((s,i)=>!boxes[i].checked);
+    addDeclined(keep.map(s=>s.sig));
+    close(ov);
+    if(!pick.length){toast("Kept as they are — they won’t be suggested again.");return;}
+    archiveState(state,"before combining split checks");
+    pushUndo("combined "+pick.length+" split check"+(pick.length!==1?"s":""));
+    pick.forEach(applyMerge);
+    persist();renderAll();
+    const n=pick.reduce((s,x)=>s+x.list.length,0);
+    toast(`Combined ${n} entries into ${pick.length} split withdrawal${pick.length!==1?"s":""}.`,"Undo",undo);
+  };
+}
+
 /* ================= MODAL ================= */
 function modal(inner,extra=""){const ov=document.createElement("div");ov.className="overlay";ov.innerHTML=`<div class="modal ${extra}">${inner}</div>`;document.body.appendChild(ov);ov.addEventListener("mousedown",e=>{if(e.target===ov)close(ov);});ov.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>close(ov));return ov;}
 function close(ov){ov.remove();}
@@ -2438,7 +2744,7 @@ function serializeAll(includeMeta,st){
   (st.rows||[]).forEach(r=>g.push([r.last,r.first,r.org?"TRUE":"",r.date,(+r.amount).toFixed(2),r.type,r.notes,allocStr(r.allocs)]));
   g.push(["#!TRANSACTIONS"]);
   g.push(["Id","Date","Kind","From","To","Amount","Ref","Notes","Payee","ExpenseGroup"]);
-  (st.txns||[]).forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",t.egroup||""]));
+  (st.txns||[]).forEach(t=>g.push([t.id,t.date,t.kind,t.from||"",allocStr(t.allocs),(+t.amount).toFixed(2),t.ref||"",t.notes||"",t.payee||"",egroupCell(t)]));
   const body=toCSV(g);
   return includeMeta?buildMetaLine(st)+"\r\n"+body:body;
 }
@@ -2451,14 +2757,16 @@ function txnsCSV(rows){
   const g=[["Date","Type","From","To","Category","Payee","Expense group","Amount","Ref","Notes"]];
   rows.forEach(t=>{
     const wd=t.kind==="withdrawal";
-    if(!t.allocs||!t.allocs.length){g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,"","",wd?payeeOf(t):"",wd?egroupOf(t):"",(+t.amount).toFixed(2),t.ref||"",t.notes||""]);return;}
+    /* a split withdrawal is one line per expense group, like a split donation is one line per account */
+    if(wd){wSplits(t).forEach(s=>g.push([t.date,TXN_KINDS[t.kind],t.from,"","",payeeOf(t),s.group,s.amount.toFixed(2),t.ref||"",t.notes||""]));return;}
+    if(!t.allocs||!t.allocs.length){g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,"","","","",(+t.amount).toFixed(2),t.ref||"",t.notes||""]);return;}
     t.allocs.forEach(a=>g.push([t.date,TXN_KINDS[t.kind],t.kind==="donation"?t.who:t.from,a.account,tagOfAccount(a.account),"","",(+a.amount).toFixed(2),t.ref||"",t.notes||""]));
   });
   return toCSV(g);
 }
 function withdrawalsCSV(rows){
   const g=[["Date","Payee","Expense group","Paid from","Amount","Ref","Notes"]];
-  rows.forEach(t=>g.push([t.date,payeeOf(t),egroupOf(t),t.from||"",(+t.amount).toFixed(2),t.ref||"",t.notes||""]));
+  rows.forEach(t=>wSplits(t).forEach(s=>g.push([t.date,payeeOf(t),s.group,t.from||"",s.amount.toFixed(2),t.ref||"",t.notes||""])));
   return toCSV(g);
 }
 function stampName(prefix){const s=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");return `${prefix}_${s}.csv`;}
@@ -2689,6 +2997,7 @@ function openApp(){
   el("fType").innerHTML=`<option value="">All types</option>`+DONATION_TYPES.map(t=>`<option>${t}</option>`).join("");
   el("fKind").innerHTML=`<option value="">All types</option>`+Object.entries(TXN_KINDS).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
   showPage(curPage);persist();renderAll();
+  setTimeout(()=>promptMerges(false),400);   /* offer to fold checks that were entered as several withdrawals */
 }
 function el(id){return document.getElementById(id);}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
@@ -2768,12 +3077,13 @@ el("btnSave").onclick=saveFlow;
 el("btnExport").onclick=exportFiltered;
 el("btnExportT").onclick=exportTxns;
 el("btnExportX").onclick=exportWithdrawals;
+el("btnMergeChecks").onclick=()=>promptMerges(true);
 
 ["fRange","fType","fDAcct","fName","fMin","fMax","fFrom","fTo"].forEach(id=>{const ev=(id==="fName"||id==="fMin"||id==="fMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fRange").value==="custom";el("customFrom").classList.toggle("hidden",!custom);el("customTo").classList.toggle("hidden",!custom);renderDonations();});});
 el("btnClearFilters").onclick=()=>{["fName","fMin","fMax","fFrom","fTo"].forEach(i=>el(i).value="");el("fRange").value="all";el("fType").value="";el("fDAcct").value="";el("customFrom").classList.add("hidden");el("customTo").classList.add("hidden");renderDonations();};
 
-["fTRange","fKind","fAcct","fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(id=>{const ev=(id==="fTText"||id==="fTMin"||id==="fTMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fTRange").value==="custom";el("tCustomFrom").classList.toggle("hidden",!custom);el("tCustomTo").classList.toggle("hidden",!custom);renderTxns();});});
-el("btnClearTFilters").onclick=()=>{["fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(i=>el(i).value="");el("fTRange").value="all";el("fKind").value="";el("fAcct").value="";el("tCustomFrom").classList.add("hidden");el("tCustomTo").classList.add("hidden");renderTxns();};
+["fTRange","fKind","fAcct","fTGroup","fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(id=>{const ev=(id==="fTText"||id==="fTMin"||id==="fTMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fTRange").value==="custom";el("tCustomFrom").classList.toggle("hidden",!custom);el("tCustomTo").classList.toggle("hidden",!custom);renderTxns();});});
+el("btnClearTFilters").onclick=()=>{["fTText","fTMin","fTMax","fTFrom","fTTo"].forEach(i=>el(i).value="");el("fTRange").value="all";el("fKind").value="";el("fAcct").value="";el("fTGroup").value="";el("tCustomFrom").classList.add("hidden");el("tCustomTo").classList.add("hidden");renderTxns();};
 
 ["fXRange","fXGroup","fXPayee","fXAcct","fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(id=>{const ev=(id==="fXText"||id==="fXMin"||id==="fXMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fXRange").value==="custom";el("xCustomFrom").classList.toggle("hidden",!custom);el("xCustomTo").classList.toggle("hidden",!custom);renderWithdrawals();});});
 el("btnClearXFilters").onclick=()=>{["fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(i=>el(i).value="");el("fXRange").value="all";el("fXGroup").value="";el("fXPayee").value="";el("fXAcct").value="";el("xCustomFrom").classList.add("hidden");el("xCustomTo").classList.add("hidden");renderWithdrawals();};
