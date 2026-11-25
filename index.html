@@ -77,6 +77,10 @@
   .donorbox{border-top:1px solid var(--line-2)}
   .donorbox .dh{padding:10px 16px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;user-select:none;display:flex;gap:8px;align-items:center}
   .donorbox .dh:hover{background:#f7f8fa}
+  .donorbox .dtools{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .donorbox .dsort{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .donorbox .dsort button{border:none;border-radius:0;padding:4px 10px;font-size:12px;background:#fff;color:var(--muted)}
+  .donorbox .dsort button.active{background:var(--primary-soft);color:var(--primary-d)}
   .donorbox .dl{padding:2px 16px 12px}
   .drow{display:flex;justify-content:space-between;gap:16px;padding:6px 0;border-bottom:1px dashed var(--line-2);font-size:13px}
   .drow:last-child{border-bottom:none}
@@ -311,7 +315,13 @@
       <div id="singleDonor" class="single hidden"></div>
 
       <div id="donorBox" class="donorbox hidden">
-        <div class="dh" id="donorToggle"><span id="donorCaret">▾</span> Breakdown by donor</div>
+        <div class="dh" id="donorToggle"><span id="donorCaret">▾</span> Breakdown by donor
+          <span class="dtools">
+            <span class="muted" style="font-weight:600">Sort</span>
+            <span class="dsort"><button data-dsort="total" class="active">Total</button><button data-dsort="name">A–Z</button></span>
+            <button class="mini" id="btnExportDonors">Export donors</button>
+          </span>
+        </div>
         <div class="dl" id="donorList"></div>
       </div>
 
@@ -600,6 +610,8 @@ function blankState(){return{rows:[],accounts:[{name:DEFAULT_ACCOUNT,created:tod
   fileName:"new file",version:0,savedSig:null,savedAt:"",savedTo:""};}
 let state=blankState();
 let sortKey="date",sortDir=-1;
+let donorSort="total";  // breakdown by donor: "total" (highest first) or "name" (A–Z)
+let donorRows=[];       // the breakdown as currently shown, for "Export donors"
 let tSortKey="date",tSortDir=-1;
 let xSortKey="date",xSortDir=-1;
 let fileHandle=null;
@@ -1239,10 +1251,13 @@ function renderDonations(){
 
   const box=el("donorBox"),list=el("donorList");
   if(donorSums.size>1){
-    const sorted=[...donorSums.values()].sort((a,b)=>b.sum-a.sum);
+    const byName=(a,b)=>a.name.localeCompare(b.name,undefined,{sensitivity:"base"});
+    const sorted=[...donorSums.values()].sort(donorSort==="name"?byName:(a,b)=>(b.sum-a.sum)||byName(a,b));
+    donorRows=sorted;
+    box.querySelectorAll("[data-dsort]").forEach(b=>b.classList.toggle("active",b.dataset.dsort===donorSort));
     list.innerHTML=sorted.map(d=>`<div class="drow"><span class="dn">${esc(d.name)}${d.org?'<span class="dc">business</span>':''}<span class="dc">${d.count} donation${d.count!==1?"s":""}</span></span><span class="dv">${fmt.format(d.sum)}</span></div>`).join("");
     box.classList.remove("hidden");
-  } else box.classList.add("hidden");
+  } else {box.classList.add("hidden");donorRows=[];}
 
   tb.querySelectorAll(".rowdel").forEach(b=>b.onclick=()=>{
     const i=parseInt(b.dataset.i);const r=state.rows[i];if(!r)return;
@@ -2892,6 +2907,13 @@ async function saveCopy(){ // never touches the linked file
   }
   downloadText(text,stampName("donations_backup"));toast("Backup copy downloaded.");
 }
+function exportDonors(){
+  if(!donorRows.length){toast("No donors to export.");return;}
+  const g=[["Name","Donations","Total"]];
+  donorRows.forEach(d=>g.push([d.name,d.count,d.sum.toFixed(2)]));
+  downloadText(toCSV(g),stampName("donors"));
+  toast(`Exported ${donorRows.length} donor${donorRows.length!==1?"s":""}.`);
+}
 function exportFiltered(){downloadText(donationsOnlyCSV(applyFilter()),stampName("donations_filtered"));toast("Exported filtered donations.");}
 function exportTxns(){downloadText(txnsCSV(applyTFilter()),stampName("transactions_filtered"));toast("Exported filtered transactions.");}
 function exportWithdrawals(){downloadText(withdrawalsCSV(applyXFilter()),stampName("withdrawals_filtered"));toast("Exported filtered withdrawals.");}
@@ -3173,6 +3195,8 @@ el("btnClearTFilters").onclick=()=>{["fTText","fTMin","fTMax","fTFrom","fTTo"].f
 ["fXRange","fXGroup","fXPayee","fXAcct","fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(id=>{const ev=(id==="fXText"||id==="fXMin"||id==="fXMax")?"input":"change";el(id).addEventListener(ev,()=>{const custom=el("fXRange").value==="custom";el("xCustomFrom").classList.toggle("hidden",!custom);el("xCustomTo").classList.toggle("hidden",!custom);renderWithdrawals();});});
 el("btnClearXFilters").onclick=()=>{["fXText","fXMin","fXMax","fXFrom","fXTo"].forEach(i=>el(i).value="");el("fXRange").value="all";el("fXGroup").value="";el("fXPayee").value="";el("fXAcct").value="";el("xCustomFrom").classList.add("hidden");el("xCustomTo").classList.add("hidden");renderWithdrawals();};
 
+document.querySelectorAll("[data-dsort]").forEach(b=>b.onclick=e=>{e.stopPropagation();donorSort=b.dataset.dsort;renderDonations();});
+el("btnExportDonors").onclick=e=>{e.stopPropagation();exportDonors();};
 el("donorToggle").onclick=()=>{const l=el("donorList"),c=el("donorCaret");const hid=l.classList.toggle("hidden");c.textContent=hid?"▸":"▾";};
 el("payeeToggle").onclick=()=>{const l=el("payeeList"),c=el("payeeCaret");const hid=l.classList.toggle("hidden");c.textContent=hid?"▸":"▾";};
 document.querySelectorAll("th[data-sort]").forEach(th=>th.onclick=()=>{const k=th.dataset.sort;if(sortKey===k)sortDir*=-1;else{sortKey=k;sortDir=(k==="date")?-1:1;}renderDonations();});
