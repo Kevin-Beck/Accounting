@@ -311,8 +311,8 @@
       <div id="singleDonor" class="single hidden"></div>
 
       <div id="donorBox" class="donorbox hidden">
-        <div class="dh" id="donorToggle"><span id="donorCaret">▸</span> Breakdown by donor</div>
-        <div class="dl hidden" id="donorList"></div>
+        <div class="dh" id="donorToggle"><span id="donorCaret">▾</span> Breakdown by donor</div>
+        <div class="dl" id="donorList"></div>
       </div>
 
       <div class="tablewrap">
@@ -2806,14 +2806,21 @@ function downloadText(text,filename){
   /* revoking straight after click() can cancel the download in Chromium/Edge */
   setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},60000);
 }
+/* rejects with a named TimeoutError if p hasn't settled in ms, so a stalled step surfaces instead of hanging */
+function stepTimeout(p,ms,step){
+  let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(Object.assign(new Error(step),{name:"TimeoutError",step})),ms);})]).finally(()=>clearTimeout(t));
+}
 async function writeToHandle(handle,text){
-  const w=await handle.createWritable();await w.write(text);await w.close();
+  const w=await stepTimeout(handle.createWritable(),20000,"opening the file for writing");
+  await stepTimeout(w.write(text),20000,"writing the file");
+  await stepTimeout(w.close(),20000,"finishing the write");
   /* read it back so "saved" is only ever claimed for a file that really holds this text */
-  const back=await (await handle.getFile()).text();
+  const back=await stepTimeout(handle.getFile().then(f=>f.text()),20000,"checking the saved file");
   if(back!==text)throw Object.assign(new Error("the file on disk doesn't match what was written"),{name:"VerifyError"});
 }
 /* resolves after ms even if the promise never settles (IndexedDB can stall in some browsers) */
 function withTimeout(p,ms){return Promise.race([p,new Promise(r=>setTimeout(r,ms))]);}
+function setSaving(msg){const pill=el("savePill");if(pill){pill.className="pill warn";pill.textContent="⏳ "+msg;}}
 function markSaved(name,via){
   state.savedSig=sig(state);state.savedAt=new Date().toISOString();state.savedTo=name;state.savedVia=via||"file";
   el("fileLabel").textContent=state.fileName||name;
@@ -2824,12 +2831,20 @@ function markSaved(name,via){
 }
 function saveErrText(e){
   if(!e)return"unknown error";
+  if(e.name==="TimeoutError")return"the browser stopped responding while "+e.step;
   if(e.name==="NotAllowedError")return"permission to write the file was denied";
   if(e.name==="NotFoundError")return"the file was moved or deleted";
   if(e.name==="NoModificationAllowedError"||e.name==="InvalidStateError")return"the file is locked or open in another program";
   return e.message||e.name||"unknown error";
 }
+let saving=false;
 async function saveFlow(){
+  if(saving){toast("A save is already in progress…");return;}
+  saving=true;
+  try{await saveFlowInner();}finally{saving=false;}
+}
+async function saveFlowInner(){
+  setSaving("Saving…");
   const prev=state.version||0;
   let text;
   try{state.version=prev+1;text=serializeAll(true);}
@@ -2843,14 +2858,24 @@ async function saveFlow(){
     if(!h){
       h=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
       picked=true;
+    } else if(h.queryPermission){
+      /* a file opened (not saved) here only has read access; ask for write access explicitly
+         rather than leaving createWritable() waiting on a prompt that's easy to miss */
+      let p=await stepTimeout(h.queryPermission({mode:"readwrite"}),5000,"checking file permission");
+      if(p!=="granted"){
+        setSaving("Waiting for permission — allow the browser to edit "+h.name+" (check the address bar)");
+        p=await stepTimeout(h.requestPermission({mode:"readwrite"}),60000,"waiting for permission to edit the file");
+      }
+      if(p!=="granted")throw Object.assign(new Error(""),{name:"NotAllowedError"});
     }
+    setSaving("Saving to "+h.name+"…");
     await writeToHandle(h,text);
   }catch(e){
     state.version=prev;
     if(e.name==="AbortError"&&!fileHandle){updateStatus();return;} // picker cancelled
     console.error("save failed",e);
     updateStatus();
-    toast("Save failed — "+saveErrText(e)+". Nothing was saved.","Save as new file…",()=>{fileHandle=null;saveFlow();});
+    toast("Save failed — "+saveErrText(e)+". Nothing was saved.","Save as new file…",()=>{fileHandle=null;saving=false;saveFlow();});
     return;
   }
   fileHandle=h;state.fileName=h.name;
@@ -2916,7 +2941,7 @@ function confirmRestoreSnap(s){
 let bootHandle=null;
 async function bootStart(){
   const auto=loadPersist();
-  try{bootHandle=await idbGet("fileHandle");}catch(e){bootHandle=null;}
+  try{bootHandle=(await withTimeout(idbGet("fileHandle"),3000))||null;}catch(e){bootHandle=null;}
   const snaps=readSnaps();
   el("snapCount").textContent=snaps.length?`(${snaps.length})`:"";
   const canContinue=hasContent(auto)||!!bootHandle;
@@ -3029,7 +3054,7 @@ function newFileFlow(){
 
 /* ================= FILE OPEN ================= */
 async function openViaPicker(){
-  if(HAS_FSA){try{const[h]=await window.showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});const f=await h.getFile();await idbSet("fileHandle",h);importText(await f.text(),h.name,h);}catch(e){if(e.name!=="AbortError")toast("Could not open file.");}}
+  if(HAS_FSA){try{const[h]=await window.showOpenFilePicker({types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});const f=await h.getFile();await withTimeout(idbSet("fileHandle",h).catch(()=>{}),3000);importText(await f.text(),h.name,h);}catch(e){if(e.name!=="AbortError")toast("Could not open file.");}}
   else el("fileInput").click();
 }
 
@@ -3085,7 +3110,7 @@ dz.addEventListener("drop",e=>handleDrop(e));
 
 async function handleDrop(e){
   const item=e.dataTransfer.items&&e.dataTransfer.items[0];
-  if(item&&item.getAsFileSystemHandle&&HAS_FSA){try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==="file"){await idbSet("fileHandle",h);const f=await h.getFile();importText(await f.text(),h.name,h);return;}}catch(_){}}
+  if(item&&item.getAsFileSystemHandle&&HAS_FSA){try{const h=await item.getAsFileSystemHandle();if(h&&h.kind==="file"){await withTimeout(idbSet("fileHandle",h).catch(()=>{}),3000);const f=await h.getFile();importText(await f.text(),h.name,h);return;}}catch(_){}}
   const f=e.dataTransfer.files[0];if(f){const r=new FileReader();r.onload=()=>importText(r.result,f.name,null);r.readAsText(f);}
 }
   
