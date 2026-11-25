@@ -130,6 +130,8 @@
   .catnames{margin-top:9px;line-height:1.9}
   .catarrow{position:absolute;bottom:12px;right:14px;color:var(--muted);font-size:14px}
   .acc.cat:hover .catarrow{color:var(--primary-d)}
+  .showall{display:flex;flex-direction:column;align-items:center;gap:6px;padding:0 16px 18px}
+  .showall button{font-weight:700;letter-spacing:.04em;padding:9px 22px}
 
   .overlay{position:fixed;inset:0;background:rgba(20,28,40,.42);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow-y:auto}
   .modal{background:var(--panel);border-radius:14px;box-shadow:0 20px 60px rgba(10,20,40,.28);width:100%;max-width:480px;margin:auto}
@@ -345,6 +347,10 @@
         <button class="primary" id="btnNewTxn">Make new transaction</button>
       </div>
       <div id="acctGrid" class="accgrid"></div>
+      <div id="acctShowAll" class="showall hidden">
+        <span id="acctHiddenNote" class="muted" style="font-size:12px"></span>
+        <button id="btnShowAllSubs">SHOW ALL SUBACCOUNTS</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -601,6 +607,7 @@ let curPage="donations";
 let storageTrouble=false;
 let undoStack=[];
 let acctTag=null;   // null = category overview, otherwise the category being viewed
+let showAllSubs=false; // false = hide accounts with no activity in the last 12 months
 let egGroup=null;   // null = expense-group overview, otherwise the group being viewed
 
 /* ================= tiny IndexedDB (file handle) ============ */
@@ -673,6 +680,13 @@ function isDirty(){return state.savedSig!==sig(state);}
 function hasContent(st){return !!st&&(((st.rows||[]).length>0)||((st.txns||[]).length>0)||((st.accounts||[]).length>1));}
 function summaryOf(st){return{d:(st.rows||[]).length,t:(st.txns||[]).length,a:(st.accounts||[]).length,latest:latestDateOf(st.rows||[])};}
 function summaryText(st){const s=summaryOf(st);return `${s.d} donation${s.d!==1?"s":""} · ${s.t} transaction${s.t!==1?"s":""} · ${s.a} account${s.a!==1?"s":""}`;}
+/* "today at 3:42 PM", "Nov 3 at 3:42 PM", "Nov 3, 2025 at 3:42 PM" */
+function clockTime(iso){
+  const d=new Date(iso);if(!iso||isNaN(d))return"";
+  const now=new Date(),t=d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+  if(d.toDateString()===now.toDateString())return"today at "+t;
+  return d.toLocaleDateString([],d.getFullYear()===now.getFullYear()?{month:"short",day:"numeric"}:{month:"short",day:"numeric",year:"numeric"})+" at "+t;
+}
 function relTime(iso){
   if(!iso)return"";const ms=Date.now()-new Date(iso).getTime();
   if(isNaN(ms))return"";
@@ -928,14 +942,17 @@ function ledger(){
 }
 function accBalances(){
   const m=new Map();
-  const get=n=>{const k=canonAccount(n);if(!m.has(k))m.set(k,{bal:0,count:0});return m.get(k);};
-  state.accounts.forEach(a=>get(a.name));
+  const get=n=>{const k=canonAccount(n);if(!m.has(k))m.set(k,{bal:0,count:0,last:""});return m.get(k);};
+  const touch=(e,d)=>{if(d&&d>e.last)e.last=d;};
+  state.accounts.forEach(a=>touch(get(a.name),a.created||""));
   for(const t of ledger()){
-    if(t.from){const e=get(t.from);e.bal-=t.amount;e.count++;}
-    for(const a of (t.allocs||[])){const e=get(a.account);e.bal+=(+a.amount||0);e.count++;}
+    if(t.from){const e=get(t.from);e.bal-=t.amount;e.count++;touch(e,t.date);}
+    for(const a of (t.allocs||[])){const e=get(a.account);e.bal+=(+a.amount||0);e.count++;touch(e,t.date);}
   }
   return m;
 }
+/* ISO date 12 months ago; an account is "active" if created or used on/after it */
+function activityCutoff(){const d=new Date();d.setFullYear(d.getFullYear()-1);return d.toISOString().slice(0,10);}
 function balanceOf(name){const e=accBalances().get(canonAccount(name));return e?e.bal:0;}
 
 /* ================= META ================= */
@@ -1058,7 +1075,7 @@ function normalizeState(s){
     else if(t.splits.length)setSplits(t,t.splits);
   });
   if(s.savedSig===undefined)s.savedSig=null;
-  s.savedAt=s.savedAt||"";s.savedTo=s.savedTo||"";
+  s.savedAt=s.savedAt||"";s.savedTo=s.savedTo||"";s.savedVia=s.savedVia||"";
   s.version=s.version||0;
   return s;
 }
@@ -1180,8 +1197,10 @@ function updateStatus(){
   const pill=el("savePill");if(!pill)return;
   if(storageTrouble){pill.className="pill bad";pill.textContent="⚠ Browser storage full — autosave off. Save to a file now.";return;}
   if(!state.savedAt){pill.className="pill warn";pill.textContent="● Not saved to a file yet";return;}
-  if(isDirty()){pill.className="pill warn";pill.textContent=`● Unsaved changes — last saved ${relTime(state.savedAt)}`;return;}
-  pill.className="pill ok";pill.textContent=`✓ Saved to ${state.savedTo||state.fileName} · ${relTime(state.savedAt)}`;
+  if(isDirty()){pill.className="pill warn";pill.textContent=`● Unsaved changes — last saved ${clockTime(state.savedAt)}`;return;}
+  const via=state.savedVia==="download"?"↓ Downloaded":"✓ Saved to";
+  pill.className="pill ok";pill.textContent=`${via} ${state.savedTo||state.fileName} · ${clockTime(state.savedAt)}`;
+  pill.title=new Date(state.savedAt).toLocaleString();
 }
 
 function renderDonations(){
@@ -1283,6 +1302,7 @@ function renderAccounts(){
   el("btnTagTxns").classList.toggle("hidden",!drilled);
 
   if(!drilled){
+    el("acctShowAll").classList.add("hidden");
     /* ---- top level: one card per category ---- */
     el("acctHeading").textContent="Categories";
     const totals=tagTotals();
@@ -1301,14 +1321,23 @@ function renderAccounts(){
       </div>`;
     }).join("")||`<div class="empty" style="grid-column:1/-1">No accounts yet — create one to get started.</div>`;
     el("acctTotal").innerHTML=`Total across all categories <b style="color:var(--text);font-size:14px">${fmt.format(total)}</b>`;
-    grid.querySelectorAll(".acc.cat").forEach(c=>c.onclick=()=>{acctTag=c.dataset.tag;renderAccounts();});
+    grid.querySelectorAll(".acc.cat").forEach(c=>c.onclick=()=>{acctTag=c.dataset.tag;showAllSubs=false;renderAccounts();});
   } else {
     /* ---- inside a category: the accounts tagged with it ---- */
     el("acctHeading").textContent=acctTag;
-    const accs=accountsInTag(acctTag);
+    const allAccs=accountsInTag(acctTag),cutoff=activityCutoff();
+    const isActive=a=>{const e=m.get(canonAccount(a.name));return !!e&&e.last>=cutoff;};
+    const accs=showAllSubs?allAccs:allAccs.filter(isActive);
+    const hiddenN=allAccs.filter(a=>!isActive(a)).length;
+    el("acctShowAll").classList.toggle("hidden",hiddenN===0);
+    el("btnShowAllSubs").textContent=showAllSubs?"HIDE INACTIVE SUBACCOUNTS":"SHOW ALL SUBACCOUNTS";
+    el("acctHiddenNote").textContent=showAllSubs
+      ?`Showing ${hiddenN} account${hiddenN!==1?'s':''} with no activity in the last 12 months`
+      :`${hiddenN} account${hiddenN!==1?'s':''} with no activity in the last 12 months hidden`;
     let total=0;
+    allAccs.forEach(a=>{total+=(m.get(canonAccount(a.name))||{bal:0}).bal;});
     grid.innerHTML=accs.map(a=>{
-      const e=m.get(a.name)||{bal:0,count:0};total+=e.bal;
+      const e=m.get(canonAccount(a.name))||{bal:0,count:0};
       return `<div class="acc" data-acct="${esc(a.name)}">
         <div class="accbtns">
           <span class="accedit" data-edit="${esc(a.name)}" title="Edit account">✎</span>
@@ -1318,7 +1347,7 @@ function renderAccounts(){
         <div class="accbal ${e.bal<-0.0001?'neg':''}">${fmt.format(e.bal)}</div>
         <div class="accsub">${e.count} entr${e.count===1?'y':'ies'}</div>
       </div>`;
-    }).join("")||`<div class="empty" style="grid-column:1/-1">No accounts in this category yet.</div>`;
+    }).join("")||`<div class="empty" style="grid-column:1/-1">${allAccs.length?"No accounts in this category have activity in the last 12 months.":"No accounts in this category yet."}</div>`;
     el("acctTotal").innerHTML=`Total in ${esc(acctTag)} <b style="color:var(--text);font-size:14px">${fmt.format(total)}</b>`;
     grid.querySelectorAll(".acc").forEach(c=>c.onclick=e=>{
       if(e.target.hasAttribute("data-del")||e.target.hasAttribute("data-edit"))return;
@@ -2770,34 +2799,64 @@ function withdrawalsCSV(rows){
   return toCSV(g);
 }
 function stampName(prefix){const s=new Date().toISOString().slice(0,16).replace(/[-:T]/g,"").replace(/(\d{8})(\d{4})/,"$1_$2");return `${prefix}_${s}.csv`;}
-function downloadText(text,filename){const blob=new Blob([text],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;a.click();URL.revokeObjectURL(a.href);}
-async function writeToHandle(handle,text){const w=await handle.createWritable();await w.write(text);await w.close();}
-function markSaved(name){
-  state.savedSig=sig(state);state.savedAt=new Date().toISOString();state.savedTo=name;
+function downloadText(text,filename){
+  const blob=new Blob([text],{type:"text/csv"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=filename;a.style.display="none";
+  document.body.appendChild(a);a.click();
+  /* revoking straight after click() can cancel the download in Chromium/Edge */
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},60000);
+}
+async function writeToHandle(handle,text){
+  const w=await handle.createWritable();await w.write(text);await w.close();
+  /* read it back so "saved" is only ever claimed for a file that really holds this text */
+  const back=await (await handle.getFile()).text();
+  if(back!==text)throw Object.assign(new Error("the file on disk doesn't match what was written"),{name:"VerifyError"});
+}
+/* resolves after ms even if the promise never settles (IndexedDB can stall in some browsers) */
+function withTimeout(p,ms){return Promise.race([p,new Promise(r=>setTimeout(r,ms))]);}
+function markSaved(name,via){
+  state.savedSig=sig(state);state.savedAt=new Date().toISOString();state.savedTo=name;state.savedVia=via||"file";
   el("fileLabel").textContent=state.fileName||name;
-  commitMeta();persist();archiveState(state,"after saving to "+name);updateStatus();
+  updateStatus();
+  /* bookkeeping only — the save has already happened, so a failure here must not undo or repeat it */
+  try{commitMeta();persist();archiveState(state,"after saving to "+name);}catch(e){console.warn("post-save bookkeeping failed",e);}
+  updateStatus();
+}
+function saveErrText(e){
+  if(!e)return"unknown error";
+  if(e.name==="NotAllowedError")return"permission to write the file was denied";
+  if(e.name==="NotFoundError")return"the file was moved or deleted";
+  if(e.name==="NoModificationAllowedError"||e.name==="InvalidStateError")return"the file is locked or open in another program";
+  return e.message||e.name||"unknown error";
 }
 async function saveFlow(){
   const prev=state.version||0;
-  state.version=prev+1;
-  const text=serializeAll(true);
-  try{
-    if(HAS_FSA){
-      if(!fileHandle){
-        fileHandle=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
-        await idbSet("fileHandle",fileHandle);
-      }
-      await writeToHandle(fileHandle,text);
-      state.fileName=fileHandle.name;
-      markSaved(fileHandle.name);
-      toast("Saved to "+fileHandle.name);
-    } else {
-      const fn=stampName("donations");downloadText(text,fn);markSaved(fn);toast("Saved a new CSV to your downloads.");
-    }
-  }catch(e){
-    if(e.name!=="AbortError"){const fn=stampName("donations");downloadText(text,fn);markSaved(fn);toast("Couldn’t write to the file — saved via download instead.");}
-    else{state.version=prev;persist();}
+  let text;
+  try{state.version=prev+1;text=serializeAll(true);}
+  catch(e){state.version=prev;console.error(e);toast("Save failed — couldn’t prepare the file ("+saveErrText(e)+"). Nothing was saved.");updateStatus();return;}
+  if(!HAS_FSA){
+    const fn=stampName("donations");downloadText(text,fn);markSaved(fn,"download");
+    toast("Downloaded "+fn+" — check your Downloads folder.");return;
   }
+  let h=fileHandle,picked=false;
+  try{
+    if(!h){
+      h=await window.showSaveFilePicker({suggestedName:state.fileName&&state.fileName.endsWith(".csv")?state.fileName:stampName("donations"),types:[{description:"CSV",accept:{"text/csv":[".csv"]}}]});
+      picked=true;
+    }
+    await writeToHandle(h,text);
+  }catch(e){
+    state.version=prev;
+    if(e.name==="AbortError"&&!fileHandle){updateStatus();return;} // picker cancelled
+    console.error("save failed",e);
+    updateStatus();
+    toast("Save failed — "+saveErrText(e)+". Nothing was saved.","Save as new file…",()=>{fileHandle=null;saveFlow();});
+    return;
+  }
+  fileHandle=h;state.fileName=h.name;
+  markSaved(h.name,"file");
+  toast("Saved to "+h.name+" — "+clockTime(state.savedAt)+".");
+  if(picked)withTimeout(idbSet("fileHandle",h).catch(()=>{}),3000); // remembered for next time; never blocks the save
 }
 async function saveCopy(){ // never touches the linked file
   const text=serializeAll(true);
@@ -3058,7 +3117,8 @@ el("btnXExport").onclick=openExpenseExport;
 el("btnNewDonation").onclick=openDonationModal;
 el("btnNewTxn").onclick=openTxnModal;
 el("btnNewAccount").onclick=()=>openAccountModal(null,n=>{const a=findAccount(n);if(a){acctTag=tagOf(a);renderAccounts();}},acctTag||"");
-el("btnAcctBack").onclick=()=>{acctTag=null;renderAccounts();};
+el("btnAcctBack").onclick=()=>{acctTag=null;showAllSubs=false;renderAccounts();};
+el("btnShowAllSubs").onclick=()=>{showAllSubs=!showAllSubs;renderAccounts();};
 el("btnRenameTag").onclick=openRenameTag;
 el("btnTagTxns").onclick=()=>{
   if(!acctTag)return;
